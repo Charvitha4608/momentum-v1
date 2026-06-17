@@ -1,0 +1,188 @@
+I am providing both:
+
+1. The login page reference image.
+2. The source code for the referenced login component.
+
+Please use BOTH.
+
+Do not recreate the component from scratch if the existing implementation is already solid. Instead, adapt, refactor, and integrate it into the application's design system.
+
+Project Context
+
+This is a productivity application focused on:
+
+* Daily Targets
+* Streaks
+* Points
+* Monthly Progress Tracking
+* History Calendar
+* Friend Leaderboards
+
+The rest of the application uses a premium dark theme with the following color palette:
+
+Primary Colors
+
+Darkest Blue:
+#28264B
+
+Medium Blue:
+#4E5174
+
+Light Blue:
+#959EC9
+
+Light Neutral:
+#E8EAE7
+
+Accent Red:
+#A40033
+
+The login page must visually belong to the same product as the dashboard, history page, leaderboard, and task management screens.
+
+Current Request
+
+Analyze the uploaded source code and login reference.
+
+Preserve:
+
+* Split-screen layout
+* Character interaction system
+* Eye tracking
+* Blinking
+* Password field interactions
+* Overall UX concept
+
+Redesign:
+
+* Character colors
+* Typography
+* Branding
+* Visual styling
+* Layout polish
+* Motion quality
+
+Character Redesign
+
+The current character colors feel disconnected from the application.
+
+Replace them with colors from the application's design system.
+
+Suggested mapping:
+
+Character 1:
+#28264B
+
+Character 2:
+#4E5174
+
+Character 3:
+#959EC9
+
+Character 4:
+#E8EAE7
+
+Accent states:
+#A40033
+
+The characters should feel like they belong to the product rather than being random colorful mascots.
+
+If necessary, slightly adjust shades for contrast while staying within the same design language.
+
+Brand Integration
+
+Replace generic branding with the application's branding.
+
+Add a productivity-focused message such as:
+
+"Build consistency. Track progress. Stay accountable."
+
+or a stronger alternative that matches the product vision.
+
+Product Context Section
+
+Use the left panel to subtly introduce the product.
+
+For example:
+
+🔥 Build daily streaks
+
+🏆 Earn points through consistency
+
+📅 Track monthly progress
+
+👥 Compete with friends
+
+This should feel elegant and minimal.
+
+Dashboard Consistency
+
+The login page must share the same design language as:
+
+* Dashboard
+* History Calendar
+* Stats Cards
+* Leaderboards
+* Task Management
+
+Use the same:
+
+* Color palette
+* Border radius system
+* Typography scale
+* Spacing system
+* Shadow system
+* Animation philosophy
+
+The login page should feel like the first screen of the same application, not a completely separate design.
+
+Animation Philosophy
+
+Keep:
+
+* Eye tracking
+* Blinking
+* Password interaction
+* Character responsiveness
+
+Improve:
+
+* Animation smoothness
+* Motion timing
+* Transition quality
+
+Avoid:
+
+* Excessive bouncing
+* Cartoon exaggeration
+* Distracting movement
+
+The interaction should feel premium and polished.
+
+Design References
+
+The overall product design should feel inspired by:
+
+* Linear
+* Vercel
+* Stripe
+* Notion
+
+The login page may be slightly more playful than the rest of the application, but it must still feel professional.
+
+Technical Requirements
+
+* Use the uploaded source code as the base.
+* Refactor where necessary.
+* Keep components reusable.
+* Maintain TypeScript correctness.
+* Follow Next.js best practices.
+* Ensure responsiveness.
+* Preserve accessibility.
+
+Before implementation:
+
+1. Analyze the uploaded source code.
+2. Explain what will be reused.
+3. Explain what will be redesigned.
+4. Explain how the login page will visually connect to the rest of the application.
+5. Then implement the redesigned version.

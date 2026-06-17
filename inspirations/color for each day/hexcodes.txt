@@ -1,0 +1,22 @@
+Use the following completion-state colors throughout the history calendar.
+
+No Targets:
+#E8EAE7
+
+0% Completed:
+#A40033
+
+1-49% Completed:
+#959EC9
+
+50-99% Completed:
+#4E5174
+
+100% Completed:
+#28264B
+
+These colors represent completion states and should be used consistently in the monthly history calendar.
+
+Do not replace them with generic red/orange/yellow/green colors.
+
+The calendar should feel elegant, premium, and cohesive with the dark productivity-focused design.

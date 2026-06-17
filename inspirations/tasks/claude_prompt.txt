@@ -1,0 +1,298 @@
+I am attaching a productivity dashboard component and its source code.
+
+IMPORTANT:
+
+Do NOT use this component as-is.
+
+Analyze the component first and extract:
+
+- Layout structure
+- Task list design
+- Quick-add input design
+- Card proportions
+- Animations
+- Framer Motion interactions
+- Progress bar styling
+- Spacing system
+- Hover effects
+
+Use those as the foundation.
+
+==================================================
+MY APPLICATION
+==================================================
+
+This is NOT a generic productivity dashboard.
+
+This is a social accountability application.
+
+Core features:
+
+- Daily Targets
+- Streaks
+- Points
+- Friends
+- Leaderboard
+- Monthly Progress Calendar
+- Daily Completion Tracking
+
+==================================================
+DESIGN SYSTEM
+==================================================
+
+Use these colors everywhere:
+
+Darkest Blue:
+#28264B
+
+Medium Blue:
+#4E5174
+
+Light Blue:
+#959EC9
+
+White:
+#E8EAE7
+
+Red:
+#A40033
+
+The app is dark themed.
+
+Avoid:
+- Green
+- Yellow
+- Corporate analytics colors
+- Marketing dashboard colors
+
+==================================================
+REPLACE THE ENTIRE TOP SECTION
+==================================================
+
+Remove:
+
+Completed
+In Progress
+Pending
+
+These metrics are meaningless for my app.
+
+Replace them with:
+
+┌────────────────────┬────────────────────┐
+│ 🔥 Current Streak  │ ⭐ Total Points    │
+│                    │                    │
+│        18          │       940          │
+│      days          │      points        │
+└────────────────────┴────────────────────┘
+
+Requirements:
+
+- Large numbers
+- Animated count-up effect
+- Premium dark cards
+- Hover animations
+- Consistent with dashboard styling
+
+==================================================
+TODAY'S PROGRESS
+==================================================
+
+Replace the bottom progress section with:
+
+🎯 Today's Progress
+
+3 / 4 Targets Completed
+
+75%
+
+Animated progress bar
+
+Use my completion system:
+
+No Targets Created:
+Color = #E8EAE7
+
+0% Completed:
+Color = #A40033
+
+1% - 49% Completed:
+Color = #959EC9
+
+50% - 99% Completed:
+Color = #4E5174
+
+100% Completed:
+Color = #28264B
+
+The progress bar and calendar heatmap should use this exact logic.
+
+==================================================
+TASK LIST
+==================================================
+
+Keep the task list structure from the reference.
+
+However:
+
+Rename "Tasks" to:
+
+Today's Targets
+
+Keep:
+
+- Quick add target
+- Checkbox interactions
+- Framer Motion animations
+- Smooth completion animations
+
+Remove:
+
+- Work
+- Development
+- Meetings
+- Generic categories
+
+Instead support:
+
+- Study
+- Coding
+- Fitness
+- Reading
+- Personal
+
+or make categories optional.
+
+==================================================
+QUICK ADD TARGET
+==================================================
+
+Keep the existing quick-add design.
+
+Placeholder:
+
+"Add today's target..."
+
+Maintain keyboard support:
+
+- Enter to create target
+
+==================================================
+LEADERBOARD
+==================================================
+
+Add a new card section.
+
+Title:
+
+🏆 Friends Leaderboard
+
+Example:
+
+#1 Rahul      1200
+
+#2 You         940
+
+#3 Arjun       880
+
+Requirements:
+
+- Highlight current user
+- Elegant dark styling
+- Not gaming themed
+- Inspired by Linear and Vercel
+
+==================================================
+CALENDAR INTEGRATION
+==================================================
+
+I already selected a monthly heatmap calendar.
+
+Each day should use:
+
+White (#E8EAE7)
+= No targets added
+
+Red (#A40033)
+= Targets added but nothing completed
+
+Light Blue (#959EC9)
+= Less than 50% completed
+
+Medium Blue (#4E5174)
+= More than 50% completed
+
+Darkest Blue (#28264B)
+= 100% completed
+
+When clicking a day:
+
+Show:
+
+- Targets for that day
+- Completion %
+- Points earned
+- Completion status
+
+Use a modal, drawer, or expandable section.
+
+==================================================
+ANIMATIONS
+==================================================
+
+Keep Framer Motion.
+
+Use:
+
+- Count-up animations
+- Smooth card hover effects
+- Progress animations
+- Checkbox completion animations
+
+Avoid:
+
+- Excessive bouncing
+- Gaming effects
+- Flashy transitions
+
+==================================================
+OVERALL FEEL
+==================================================
+
+The application should feel like:
+
+- Linear
+- Vercel
+- Notion
+
+Keywords:
+
+Minimal
+Premium
+Focused
+Dark
+Productive
+
+NOT:
+
+- Jira
+- Trello
+- Corporate Analytics
+- Marketing Dashboard
+
+==================================================
+IMPLEMENTATION
+==================================================
+
+Use the uploaded component as the implementation foundation.
+
+Refactor it into my application.
+
+Preserve the good parts:
+
+- Task list design
+- Quick add design
+- Animations
+- Layout quality
+
+Replace the business/productivity demo content with features that match my Daily Targets + Friends Leaderboard application.

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1781362425010,
+      "tag": "0000_far_impossible_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781434375596,
+      "tag": "0001_flimsy_jazinda",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781544617843,
+      "tag": "0002_thin_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781544646406,
+      "tag": "0003_backfill_general_pillar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781635233952,
+      "tag": "0004_messy_crusher_hogan",
+      "breakpoints": true
+    }
+  ]
+}

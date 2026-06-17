@@ -1,0 +1,37 @@
+==================================================
+FRIEND VISIBILITY RULES
+=======================
+
+Users CAN see:
+
+* Emoji
+* Display Name
+* Total Lifetime Points
+* Current Streak
+* Today's Daily Score
+* Today's Targets
+* Today's Progress %
+
+Example:
+
+🚀 Rahul
+
+⭐ 1200
+
+🔥 18
+
+📊 Daily Score: 7.5 / 10
+
+Today's Targets
+
+☑ Workout
+
+☑ DSA Problems
+
+☐ Read OS
+
+Progress
+
+67%
+
+Friends should be able to click a user from the leaderboard and open a Friend Profile view showing this information.

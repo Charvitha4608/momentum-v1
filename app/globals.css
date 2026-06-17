@@ -1,0 +1,100 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-geist-sans), 'Geist Fallback';
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback';
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-calendar-none: var(--calendar-none);
+  --color-calendar-empty: var(--calendar-empty);
+  --color-calendar-low: var(--calendar-low);
+  --color-calendar-mid: var(--calendar-mid);
+  --color-calendar-full: var(--calendar-full);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Premium dark theme built on the MASTER_SPEC palette. */
+  --background: #18172d; /* COLOR: app canvas behind all pages/cards; also the login page's themeColor (app/layout.tsx) */
+  --foreground: #e8eae7; /* COLOR: default body text; also LoginCharacters' Character 4 */
+  --card: #28264B; /* COLOR: card/dialog/popover fill; also LoginCharacters' Character 1 */
+  --card-foreground: #e8eae7; /* COLOR: text on cards */
+  --popover: #28264B; /* COLOR: dialog/popover fill (same as card) */
+  --popover-foreground: #e8eae7; /* COLOR: text on dialogs/popovers */
+  --primary: #959ec9; /* COLOR: brand accent — buttons, links, active nav, "you"/points highlights; also LoginCharacters' Character 3 */
+  --primary-foreground: #18172d; /* COLOR: text/icons on primary-colored surfaces */
+  --secondary: #4e5174; /* COLOR: secondary surface — hover backgrounds, badges, toggle groups; also LoginCharacters' Character 2 */
+  --secondary-foreground: #e8eae7; /* COLOR: text on secondary surfaces */
+  --muted: #312e59; /* COLOR: muted surface — progress track background, unranked leaderboard badge */
+  --muted-foreground: #9aa1cc; /* COLOR: secondary text — labels, timestamps, placeholders, inactive nav */
+  --accent: #4e5174; /* COLOR: base UI accent surface (same as secondary) */
+  --accent-foreground: #e8eae7; /* COLOR: text on accent surfaces */
+  --destructive: #a40033; /* COLOR: danger/urgency — delete actions, form errors, current-streak flame */
+  --destructive-foreground: #e8eae7; /* COLOR: text on destructive surfaces */
+  --border: color-mix(in oklch, #e8eae7 10%, transparent); /* COLOR: hairline borders/dividers */
+  --input: color-mix(in oklch, #e8eae7 14%, transparent); /* COLOR: input field borders */
+  --ring: #959ec9; /* COLOR: focus ring (matches primary) */
+  --radius: 0.85rem;
+
+  /* Monthly history calendar heatmap colors — see MASTER_SPEC "Calendar Colors". */
+  --calendar-none: #e8eae7; /* COLOR: day had no targets at all */
+  --calendar-empty: #a40033; /* COLOR: targets existed but 0% completed */
+  --calendar-low: #959ec9; /* COLOR: 1-49% completed */
+  --calendar-mid: #4e5174; /* COLOR: 50-99% completed */
+  --calendar-full: #28264B; /* COLOR: 100% completed */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  /* Subtle hover elevation for premium cards and interactive rows. */
+  .elevate-hover {
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .elevate-hover:hover {
+    transform: translateY(-2px);
+    /* COLOR: hover shadow tint — matches --background for a soft, theme-consistent elevation shadow */
+    box-shadow: 0 12px 24px -16px color-mix(in oklch, #18172d 70%, transparent);
+  }
+}

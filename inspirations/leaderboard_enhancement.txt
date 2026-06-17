@@ -1,0 +1,33 @@
+==================================================
+LEADERBOARD INTERACTION
+=======================
+
+Clicking a leaderboard row should open a Friend Profile panel.
+
+Example:
+
+🚀 Rahul
+
+⭐ 1200
+
+🔥 18
+
+📊 Daily Score: 7.5 / 10
+
+Today's Targets
+
+☑ Workout
+
+☑ DSA Problems
+
+☐ Read OS
+
+Progress
+
+67%
+
+This allows accountability without exposing private historical data.
+
+The leaderboard should not only show rankings.
+
+It should also act as a gateway to view a friend's current day progress.

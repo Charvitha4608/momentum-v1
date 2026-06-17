@@ -1,0 +1,237 @@
+Create a Friends Leaderboard component for my productivity application.
+
+==================================================
+PURPOSE
+==================================================
+
+This leaderboard allows users to compare themselves with their connected friends.
+
+Each user has:
+
+- Name
+- Total Points
+- Current Streak
+
+The leaderboard should support sorting by either:
+
+⭐ Points
+
+or
+
+🔥 Streak
+
+using a toggle.
+
+==================================================
+DESIGN STYLE
+==================================================
+
+Use design inspiration from:
+
+- Linear
+- Vercel
+- Stripe
+- Notion
+
+The leaderboard should feel:
+
+- Premium
+- Minimal
+- Modern
+- Dark themed
+- Clean
+
+Avoid:
+
+- Gaming aesthetics
+- Excessive gradients
+- Trophy overload
+- Gold/silver/bronze colors everywhere
+
+==================================================
+COLOR SYSTEM
+==================================================
+
+Use the application's palette:
+
+#28264B  Darkest Blue
+#4E5174  Medium Blue
+#959EC9  Light Blue
+#E8EAE7  Light Neutral
+#A40033  Accent Red
+
+==================================================
+HEADER
+==================================================
+
+Display:
+
+🏆 Friends Leaderboard
+
+Below it:
+
+[ ⭐ Points ] [ 🔥 Streak ]
+
+Requirements:
+
+- Animated toggle
+- Smooth transitions
+- Active state clearly highlighted
+- Default selection = Points
+
+==================================================
+LEADERBOARD ROW STRUCTURE
+==================================================
+
+Each row should display:
+
+Serial Number
+Name
+Points
+Streak
+
+Example:
+
+#1    Rahul
+
+⭐ 1200    🔥 18
+
+--------------------------------
+
+#2    You
+
+⭐ 940     🔥 14
+
+--------------------------------
+
+#3    Arjun
+
+⭐ 880     🔥 22
+
+Use a clean card/list layout.
+
+==================================================
+ROW LAYOUT
+==================================================
+
+Structure:
+
+┌──────────────────────────────────┐
+│ #1                               │
+│ Rahul                            │
+│                                  │
+│ ⭐ 1200        🔥 18             │
+└──────────────────────────────────┘
+
+Or a compact table style:
+
+#   User      ⭐ Points    🔥 Streak
+
+1   Rahul        1200         18
+2   You           940         14
+3   Arjun         880         22
+
+Choose whichever feels more premium.
+
+==================================================
+SORTING LOGIC
+==================================================
+
+When:
+
+⭐ Points
+
+is selected:
+
+Sort descending by points.
+
+Example:
+
+#1 Rahul   1200
+#2 You      940
+#3 Arjun    880
+
+--------------------------------------------------
+
+When:
+
+🔥 Streak
+
+is selected:
+
+Sort descending by streak.
+
+Example:
+
+#1 Arjun     22
+#2 Rahul     18
+#3 You       14
+
+Use smooth Framer Motion animations when rows reorder.
+
+==================================================
+CURRENT USER
+==================================================
+
+Highlight the current user's row.
+
+Possible methods:
+
+- Subtle glow
+- Different border
+- Slightly brighter background
+- "You" badge
+
+Keep it elegant.
+
+Example:
+
+#2 You
+
+⭐ 940    🔥 14
+
+==================================================
+ANIMATIONS
+==================================================
+
+Use Framer Motion.
+
+Add:
+
+- Smooth row reordering
+- Hover elevation
+- Animated toggle transition
+- Fade/slide entry animations
+
+Avoid:
+
+- Excessive bouncing
+- Gaming effects
+- Flashy transitions
+
+==================================================
+RESPONSIVENESS
+==================================================
+
+Desktop:
+
+Show full leaderboard.
+
+Mobile:
+
+Maintain readability.
+Stack information cleanly if necessary.
+
+==================================================
+IMPLEMENTATION
+==================================================
+
+Use reusable React components.
+
+Use TypeScript.
+
+Use Tailwind CSS.
+
+Follow the application's design system.
+
+The leaderboard should feel like a premium productivity application rather than a gaming ranking screen.
