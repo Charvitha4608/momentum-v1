@@ -136,6 +136,10 @@ async function generateRecurringTargets(userId: string, today: string) {
       sortOrder,
       pillarId: task.pillarId,
       recurringTaskId: task.id,
+      // Inherit the recurring template's scheduling hints so the AI Planner
+      // can pack generated targets without re-asking for duration/time-of-day.
+      durationMinutes: task.durationMinutes,
+      preferredTimeOfDay: task.preferredTimeOfDay,
     })
   }
   await upsertDailyStats(userId, today)
@@ -159,6 +163,10 @@ export async function getTodayTargets(today?: string) {
       pillarName: pillars.name,
       pillarIcon: pillars.icon,
       pillarColor: pillars.color,
+      durationMinutes: targets.durationMinutes,
+      preferredTimeOfDay: targets.preferredTimeOfDay,
+      deadline: targets.deadline,
+      scheduledStart: targets.scheduledStart,
     })
     .from(targets)
     .innerJoin(pillars, eq(targets.pillarId, pillars.id))
@@ -166,7 +174,13 @@ export async function getTodayTargets(today?: string) {
     .orderBy(asc(targets.sortOrder), asc(targets.id))
 }
 
-export async function addTarget(title: string, pillarId: number, today?: string) {
+export type TargetSchedulingMeta = {
+  durationMinutes?: number | null
+  preferredTimeOfDay?: string | null
+  deadline?: string | null
+}
+
+export async function addTarget(title: string, pillarId: number, today?: string, meta?: TargetSchedulingMeta) {
   const userId = await getUserId()
   const day = today ?? (await getToday())
   const trimmed = title.trim()
@@ -186,11 +200,28 @@ export async function addTarget(title: string, pillarId: number, today?: string)
       originalDate: day,
       sortOrder: (max ?? 0) + 1,
       pillarId,
+      durationMinutes: meta?.durationMinutes ?? null,
+      preferredTimeOfDay: meta?.preferredTimeOfDay ?? null,
+      deadline: meta?.deadline ?? null,
     })
     .returning()
   await upsertDailyStats(userId, day)
   revalidatePath("/")
   return created
+}
+
+/** Update a target's planner metadata (duration / time-of-day / deadline). */
+export async function updateTargetSchedulingMeta(id: number, meta: TargetSchedulingMeta) {
+  const userId = await getUserId()
+  await db
+    .update(targets)
+    .set({
+      ...(meta.durationMinutes !== undefined ? { durationMinutes: meta.durationMinutes } : {}),
+      ...(meta.preferredTimeOfDay !== undefined ? { preferredTimeOfDay: meta.preferredTimeOfDay } : {}),
+      ...(meta.deadline !== undefined ? { deadline: meta.deadline } : {}),
+    })
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  revalidatePath("/")
 }
 
 /** Notify the user once when all of today's targets become completed. */

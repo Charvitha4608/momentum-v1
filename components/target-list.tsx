@@ -4,12 +4,21 @@ import type React from "react"
 
 import { useState, useTransition, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Plus, X } from "lucide-react"
-import { addTarget, toggleTarget, deleteTarget, updateTargetTitle, getTodayTargets } from "@/app/actions/targets"
+import { Plus, X, SlidersHorizontal } from "lucide-react"
+import { addTarget, toggleTarget, deleteTarget, updateTargetTitle, getTodayTargets, type TargetSchedulingMeta } from "@/app/actions/targets"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { RecurringTaskDialog } from "@/components/recurring-task-dialog"
+
+const TIME_OF_DAY_CHOICES = [
+  { value: "morning", label: "Morning" },
+  { value: "afternoon", label: "Afternoon" },
+  { value: "evening", label: "Evening" },
+] as const
+
+const DURATION_CHOICES = [15, 30, 45, 60, 90, 120]
 
 type Target = {
   id: number
@@ -42,6 +51,9 @@ export function TargetList({
   const [pillarOptions, setPillarOptions] = useState<PillarOption[]>(pillars)
   const [newTitle, setNewTitle] = useState("")
   const [newPillarId, setNewPillarId] = useState<number | null>(pillars[0]?.id ?? null)
+  const [newDuration, setNewDuration] = useState<number | null>(null)
+  const [newTimeOfDay, setNewTimeOfDay] = useState<string | null>(null)
+  const [metaOpen, setMetaOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState("")
   const [, startTransition] = useTransition()
@@ -82,9 +94,16 @@ export function TargetList({
     setNewTitle("")
     inputRef.current?.focus()
 
+    const meta: TargetSchedulingMeta | undefined =
+      newDuration !== null || newTimeOfDay !== null
+        ? { durationMinutes: newDuration, preferredTimeOfDay: newTimeOfDay }
+        : undefined
+    setNewDuration(null)
+    setNewTimeOfDay(null)
+
     const realIdPromise = new Promise<number>((resolve) => {
       startTransition(async () => {
-        const created = await addTarget(title, pillar.id, date)
+        const created = await addTarget(title, pillar.id, date, meta)
         if (created) {
           setItems((prev) => prev.map((it) => (it.id === tempId ? { ...it, id: created.id } : it)))
           resolve(created.id)
@@ -256,6 +275,57 @@ export function TargetList({
             onChange={setNewPillarId}
             onPillarCreated={(pillar) => setPillarOptions((prev) => [...prev, pillar])}
           />
+          <Popover open={metaOpen} onOpenChange={setMetaOpen}>
+            <PopoverTrigger
+              type="button"
+              aria-label="Add planning details"
+              title="Duration & preferred time (helps the AI Planner)"
+              className={`flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                newDuration !== null || newTimeOfDay !== null
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3" align="end">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">For the AI Planner (optional)</p>
+              <p className="mb-1.5 text-xs text-foreground">Duration</p>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {DURATION_CHOICES.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setNewDuration((cur) => (cur === m ? null : m))}
+                    className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                      newDuration === m
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                    }`}
+                  >
+                    {m < 60 ? `${m}m` : `${m / 60}h`}
+                  </button>
+                ))}
+              </div>
+              <p className="mb-1.5 text-xs text-foreground">Preferred time</p>
+              <div className="flex flex-wrap gap-1.5">
+                {TIME_OF_DAY_CHOICES.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setNewTimeOfDay((cur) => (cur === c.value ? null : c.value))}
+                    className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                      newTimeOfDay === c.value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
           <RecurringTaskDialog
             pillars={pillarOptions}
             defaultPillarId={newPillarId}

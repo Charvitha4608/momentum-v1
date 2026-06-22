@@ -93,6 +93,11 @@ export const recurringTasks = pgTable("recurring_tasks", {
   intervalDays: integer("intervalDays"), // custom: every N days
   anchorDate: text("anchorDate").notNull(), // YYYY-MM-DD, reference date for custom interval
   active: boolean("active").notNull().default(true),
+  // Scheduling hints inherited by every generated target, consumed by the AI
+  // Planner. `durationMinutes` is the rough effort estimate; `preferredTimeOfDay`
+  // is one of 'morning' | 'afternoon' | 'evening' (null = no preference).
+  durationMinutes: integer("durationMinutes"),
+  preferredTimeOfDay: text("preferredTimeOfDay"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
 
@@ -116,6 +121,18 @@ export const targets = pgTable("targets", {
     .notNull()
     .references(() => pillars.id, { onDelete: "cascade" }),
   recurringTaskId: integer("recurringTaskId").references(() => recurringTasks.id, { onDelete: "set null" }),
+  // --- AI Planner scheduling metadata -------------------------------------
+  // `durationMinutes` is the user's rough effort estimate for this task; the
+  // planner uses it to pack tasks into available hours. `preferredTimeOfDay`
+  // ('morning' | 'afternoon' | 'evening', null = any) is a soft placement
+  // hint. `deadline` (YYYY-MM-DD) is the latest day the task should be
+  // scheduled by; it can be set manually or filled in from the planner's
+  // clarifying question. `scheduledStart` (HH:MM) is the concrete start time
+  // the user accepted from an AI proposal, surfaced in the week/planner views.
+  durationMinutes: integer("durationMinutes"),
+  preferredTimeOfDay: text("preferredTimeOfDay"),
+  deadline: text("deadline"),
+  scheduledStart: text("scheduledStart"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
 
@@ -275,3 +292,111 @@ export const userUnlocks = pgTable(
   },
   (table) => [unique("user_unlocks_user_key_unique").on(table.userId, table.key)]
 )
+
+// ===========================================================================
+// AI PLANNER ("scheduling for poor planners")
+// ===========================================================================
+
+// One row per user: their default free-time budget. The simple model is
+// `weekdayHours` / `weekendHours`; `weeklyBlocks` optionally holds a more
+// precise weekly time-block grid as JSON (array of { day:0-6, start:"HH:MM",
+// end:"HH:MM" }). The planner prefers the grid when present, otherwise falls
+// back to the per-day-type hour budgets.
+export const availability = pgTable("availability", {
+  id: serial("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" })
+    .unique(),
+  weekdayHours: real("weekdayHours").notNull().default(3),
+  weekendHours: real("weekendHours").notNull().default(5),
+  // Default earliest hour work can be scheduled (0-23) and latest (1-24);
+  // used by the deterministic packer to lay tasks onto a concrete timeline.
+  dayStartHour: integer("dayStartHour").notNull().default(9),
+  dayEndHour: integer("dayEndHour").notNull().default(22),
+  weeklyBlocks: text("weeklyBlocks"), // JSON grid, optional
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+})
+
+// Per-date override of the default budget ("today I only have 2 hours").
+// Takes priority over `availability` for its single date.
+export const availabilityOverride = pgTable(
+  "availability_override",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // YYYY-MM-DD
+    hours: real("hours").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (table) => [unique("availability_override_user_date_unique").on(table.userId, table.date)]
+)
+
+// State for one multi-turn planning run. The agentic loop persists itself
+// here so a clarifying question can pause the run and resume once the user
+// answers. `scope` is 'day' | 'week'; `status` is
+// 'awaiting_user' | 'complete' | 'abandoned'. `messages` is the JSON
+// transcript fed back to the model; `pendingQuestion` holds the current
+// clarifying question + quick-reply options when status = 'awaiting_user'.
+export const aiPlanningSession = pgTable("ai_planning_session", {
+  id: serial("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  scope: text("scope").notNull(), // 'day' | 'week'
+  anchorDate: text("anchorDate").notNull(), // YYYY-MM-DD the plan starts from
+  status: text("status").notNull().default("awaiting_user"),
+  messages: text("messages").notNull().default("[]"), // JSON transcript
+  pendingQuestion: text("pendingQuestion"), // JSON { text, options[], field, taskRef }
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+})
+
+// A single proposed (or accepted/edited/rejected) scheduled item. The Planner
+// view renders these as draggable AI cards. `targetId` links to an existing
+// target when the item schedules real work; it is null for a brand-new
+// suggestion. `status`: 'proposed' | 'accepted' | 'edited' | 'rejected'.
+// `aiGenerated` distinguishes model output from manual edits/additions.
+export const aiSchedule = pgTable("ai_schedule", {
+  id: serial("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  sessionId: integer("sessionId").references(() => aiPlanningSession.id, { onDelete: "set null" }),
+  targetId: integer("targetId").references(() => targets.id, { onDelete: "cascade" }),
+  pillarId: integer("pillarId").references(() => pillars.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD the item is scheduled on
+  startTime: text("startTime"), // HH:MM
+  endTime: text("endTime"), // HH:MM
+  durationMinutes: integer("durationMinutes").notNull().default(30),
+  timeOfDay: text("timeOfDay"), // 'morning' | 'afternoon' | 'evening' | 'any'
+  reasoning: text("reasoning"), // short "why scheduled here" explanation
+  priority: integer("priority").notNull().default(0),
+  status: text("status").notNull().default("proposed"),
+  aiGenerated: boolean("aiGenerated").notNull().default(true),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+})
+
+// Append-only log of how the user reacted to each AI suggestion. Feeds the
+// personalization signal that's summarized back into future planning prompts
+// (e.g. detecting "user always moves Gym to evening").
+export const aiScheduleFeedback = pgTable("ai_schedule_feedback", {
+  id: serial("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  scheduleId: integer("scheduleId").references(() => aiSchedule.id, { onDelete: "set null" }),
+  targetId: integer("targetId").references(() => targets.id, { onDelete: "set null" }),
+  pillarId: integer("pillarId").references(() => pillars.id, { onDelete: "set null" }),
+  action: text("action").notNull(), // 'accept' | 'edit' | 'reject'
+  fromDate: text("fromDate"),
+  toDate: text("toDate"),
+  fromTimeOfDay: text("fromTimeOfDay"),
+  toTimeOfDay: text("toTimeOfDay"),
+  fromStart: text("fromStart"),
+  toStart: text("toStart"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+})

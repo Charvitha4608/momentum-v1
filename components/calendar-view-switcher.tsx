@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-export type CalendarView = "month" | "pillars" | "week"
+export type CalendarView = "month" | "pillars" | "week" | "planner"
 
 export function CalendarViewSwitcher({ view }: { view: CalendarView }) {
   const router = useRouter()
@@ -26,6 +26,9 @@ export function CalendarViewSwitcher({ view }: { view: CalendarView }) {
       </ToggleGroupItem>
       <ToggleGroupItem value="week" aria-label="Week view">
         Week
+      </ToggleGroupItem>
+      <ToggleGroupItem value="planner" aria-label="AI Planner view">
+        Planner
       </ToggleGroupItem>
     </ToggleGroup>
   )

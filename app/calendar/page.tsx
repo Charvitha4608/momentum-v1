@@ -8,6 +8,8 @@ import { CalendarWeekView } from "@/components/calendar-week-view"
 import { CalendarViewSwitcher, type CalendarView } from "@/components/calendar-view-switcher"
 import { WeeklyScoreCard } from "@/components/weekly-score-card"
 import { AppShell } from "@/components/app-shell"
+import { AiPlanner } from "@/components/ai-planner"
+import { getWeekSchedule } from "@/app/actions/planner"
 import { getToday } from "@/lib/date"
 
 export default async function CalendarPage({
@@ -23,7 +25,20 @@ export default async function CalendarPage({
   const [todayYear, todayMonth] = today.split("-").map(Number)
   const year = params.year ? Number(params.year) : todayYear
   const month = params.month ? Number(params.month) : todayMonth
-  const view: CalendarView = params.view === "pillars" || params.view === "week" ? params.view : "month"
+  const view: CalendarView =
+    params.view === "pillars" || params.view === "week" || params.view === "planner" ? params.view : "month"
+
+  if (view === "planner") {
+    const { days: weekDays, items } = await getWeekSchedule(params.week ?? today)
+    return (
+      <AppShell active="/calendar" title="AI Planner" subtitle="Let Claude shape your week around your time">
+        <div className="flex flex-col gap-4">
+          <CalendarViewSwitcher view={view} />
+          <AiPlanner initialDays={weekDays} initialItems={items} today={today} />
+        </div>
+      </AppShell>
+    )
+  }
 
   if (view === "week") {
     const [weekDays, streak] = await Promise.all([

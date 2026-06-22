@@ -13,6 +13,19 @@ Most productivity apps track tasks. Momentum tracks **who you are becoming**.
 
 Every task you complete belongs to a **Pillar** — a domain of your life you are actively investing in (DSA, Gym, Reading, Projects, etc.). Over time, Momentum builds a picture of how you are allocating your effort, where you are excelling, and what you are neglecting — giving you the clarity to grow intentionally.
 
+### AI Planner — Scheduling for Poor Planners
+Tell Momentum how much free time you actually have, and let Gemini lay out your day or week.
+
+- **Availability system** — set default free hours per weekday and per weekend day, override any specific date ("today I only have 2 hours"), and quick-edit today's hours straight from the dashboard
+- **Task scheduling data** — give a target a duration estimate and a preferred time of day (morning / afternoon / evening); the planner can also fill in a deadline by asking
+- **Hybrid planner** — deterministic logic enforces the hard constraints (your hours, deadlines, recurrence) while Gemini handles prioritization and balance-aware judgment, drawing on your desired-vs-actual pillar effort and neglected-pillar signals
+- **Agentic clarifying questions** — when a task's duration or deadline is missing, the planner asks with quick-reply chips instead of free text, and decides on its own when it has enough to plan
+- **Review & interact** — proposed items appear as draggable cards on the week grid with an AI badge; accept, edit, reject, or drag any item to another day. Manual edits always win
+- **Learns your patterns** — every accept / edit / reject is logged and fed back into future prompts (e.g. "you always move Gym to the evening")
+- **Works without a key** — if `GEMINI_API_KEY` is unset, a transparent heuristic planner produces the same result so the feature still runs end-to-end
+
+Open it from **Calendar → Planner** or the **Plan my week** button on the dashboard.
+
 ---
 
 ## Features
@@ -32,12 +45,13 @@ Every task you complete belongs to a **Pillar** — a domain of your life you ar
 - Set tasks as **Daily**, **Weekly**, or **Custom** (e.g. every 3 days)
 - Recurring tasks regenerate automatically — set it once, stay consistent
 
-### Calendar — Three Views
+### Calendar — Four Views
 | View | Purpose |
 |------|---------|
 | **Month View** | Visual heatmap of daily completion |
 | **Pillars View** | See which pillars you completed or missed each day |
 | **Week View** | TickTick-style weekly breakdown with pillar colors |
+| **Planner View** | AI-proposed schedule as draggable cards across the week |
 
 ### Goals Page
 - Set **Pillar Goals** (e.g. 500 DSA points/month, 20 Gym sessions/month)
@@ -124,6 +138,10 @@ BETTER_AUTH_SECRET=""
 
 # Base URL of your app
 BETTER_AUTH_URL="http://localhost:3000"
+
+# Optional — AI Planner (Google Gemini, free tier). Without a key, a heuristic fallback is used.
+GEMINI_API_KEY=""
+GEMINI_MODEL="gemini-2.5-flash"
 ```
 
 ### 4. Run database migrations
