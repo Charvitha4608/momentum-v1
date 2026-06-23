@@ -22,3 +22,5 @@ next-env.d.ts
 # Claude AI files
 CLAUDE.md
 .claude/
+
+design/
