@@ -2,7 +2,9 @@ import Link from "next/link"
 import { Target } from "lucide-react"
 
 import { getUnreadCount } from "@/app/actions/notifications"
+import { getPillars } from "@/app/actions/pillars"
 import { BottomTabBar } from "@/components/bottom-tab-bar"
+import { CommandBar } from "@/components/command-bar"
 import { PageTransition } from "@/components/page-transition"
 import { SignOutButton } from "@/components/sign-out-button"
 import { Sidebar } from "@/components/sidebar"
@@ -20,11 +22,12 @@ export async function AppShell({
   subtitle?: string
   children: React.ReactNode
 }) {
-  const unreadCount = await getUnreadCount()
+  const [unreadCount, pillars] = await Promise.all([getUnreadCount(), getPillars()])
 
   return (
     <div className="flex min-h-dvh bg-background">
       <TimezoneSync />
+      <CommandBar pillars={pillars} />
       <Sidebar active={active} unreadCount={unreadCount} />
 
       <div className="flex min-h-dvh flex-1 flex-col">

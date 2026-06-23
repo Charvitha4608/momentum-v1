@@ -1,0 +1,399 @@
+// The "brain" behind the in-app command bar (⌘K).
+//
+// Same shape as the planner agent (lib/planner/agent.ts): a Gemini
+// function-calling loop that picks exactly one tool per turn, can pause to ask
+// ONE clarifying question with quick-reply chips, and degrades to a transparent
+// heuristic when GEMINI_API_KEY is absent or the call fails — the feature never
+// hard-errors.
+//
+// Unlike the planner, the tools here are *proposal generators*: the model turns
+// a free-text command into a structured proposal (break a goal into tasks, set
+// up a recurring task, or run the weekly planner). Nothing is written from this
+// file — the server action (app/actions/assistant.ts) stages the proposal and
+// the command bar requires an explicit confirm before anything is applied.
+
+import {
+  appendAnswer,
+  type ClarifyingQuestion,
+  type ClarifyOption,
+} from "@/lib/planner/agent"
+import type { TimeOfDay } from "@/lib/planner/schedule"
+
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+const MAX_TURNS = 4
+
+// Re-export so callers (the server action) keep one import surface.
+export { appendAnswer }
+export type { ClarifyingQuestion, ClarifyOption }
+
+export type AssistantPillar = { id: number; name: string }
+
+export type AssistantContext = {
+  today: string
+  pillars: AssistantPillar[]
+  // Light balance hint so a goal breakdown can lean toward under-served pillars.
+  effort: { pillarName: string; percentOfTarget: number }[]
+}
+
+export type RecurringFrequency = "daily" | "weekly" | "custom"
+
+export type BreakdownTask = {
+  title: string
+  pillarId: number | null
+  durationMinutes: number | null
+  deadline: string | null
+}
+
+export type BreakdownProposal = {
+  kind: "breakdown"
+  goalText: string
+  tasks: BreakdownTask[]
+}
+
+export type RecurringProposal = {
+  kind: "recurring"
+  title: string
+  pillarId: number | null
+  frequency: RecurringFrequency
+  daysOfWeek: number[] // 0=Sun..6=Sat, for 'weekly'
+  intervalDays: number | null // for 'custom'
+  durationMinutes: number | null
+  preferredTimeOfDay: Exclude<TimeOfDay, "any"> | null
+}
+
+export type PlanWeekProposal = { kind: "plan_week" }
+
+export type AssistantProposal = BreakdownProposal | RecurringProposal | PlanWeekProposal
+
+export type AssistantTurn =
+  | { kind: "question"; question: ClarifyingQuestion; messages: unknown[] }
+  | { kind: "proposal"; proposal: AssistantProposal; source: "ai" | "heuristic"; messages: unknown[] }
+
+const SYSTEM_PROMPT = `You are the command bar assistant inside Momentum, a personal-growth app where users invest effort into "pillars" (life areas like DSA, Gym, Reading).
+
+The user types one short natural-language command. Turn it into exactly ONE proposal by calling exactly one tool:
+- breakdown_goal: when the user states a goal or project (e.g. "learn React", "finish NeetCode 150"). Break it into 2-6 concrete, actionable tasks and map EACH task to the most relevant existing pillar by id. Tasks are unscheduled to-dos.
+- create_recurring: when the user describes a repeating habit (e.g. "gym mon/wed/fri", "read 30 min every day", "review notes every 3 days"). Map it to the most relevant pillar.
+- plan_week: when the user asks to schedule, organize, or plan their week/day (e.g. "plan my week", "organize my schedule"). Takes no arguments.
+
+Rules:
+- ALWAYS choose a pillar id from the provided pillars list. Never invent ids.
+- Nothing you propose is applied automatically; the user reviews and confirms it. So prefer proposing over asking.
+- Only call ask_clarifying_question when the command is too ambiguous to map to any tool, and give 2-4 concrete quick-reply options (never free text).
+- You must always respond by calling exactly one tool.`
+
+// Gemini uses an OpenAPI-subset schema: UPPERCASE type names, `nullable`
+// instead of unions, nullable fields simply left out of `required`.
+function functionDeclarations() {
+  return [
+    {
+      name: "ask_clarifying_question",
+      description:
+        "Ask the user ONE question only when the command is too ambiguous to map to a tool. Provide 2-4 quick-reply options.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          text: { type: "STRING" },
+          field: { type: "STRING", enum: ["general"] },
+          options: {
+            type: "ARRAY",
+            description: "2 to 4 quick replies.",
+            items: {
+              type: "OBJECT",
+              properties: { label: { type: "STRING" }, value: { type: "STRING" } },
+              required: ["label", "value"],
+            },
+          },
+        },
+        required: ["text", "options"],
+      },
+    },
+    {
+      name: "breakdown_goal",
+      description: "Break a goal into 2-6 concrete unscheduled tasks, each mapped to an existing pillar id.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          goalText: { type: "STRING", description: "the goal restated in a short phrase" },
+          tasks: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                pillarId: { type: "INTEGER", description: "an id from the pillars list" },
+                durationMinutes: { type: "INTEGER", nullable: true },
+                deadline: { type: "STRING", nullable: true, description: "YYYY-MM-DD, optional" },
+              },
+              required: ["title", "pillarId"],
+            },
+          },
+        },
+        required: ["goalText", "tasks"],
+      },
+    },
+    {
+      name: "create_recurring",
+      description: "Propose a recurring task template from a habit description.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          title: { type: "STRING" },
+          pillarId: { type: "INTEGER", description: "an id from the pillars list" },
+          frequency: { type: "STRING", enum: ["daily", "weekly", "custom"] },
+          daysOfWeek: {
+            type: "ARRAY",
+            nullable: true,
+            description: "for weekly: integers 0=Sun..6=Sat",
+            items: { type: "INTEGER" },
+          },
+          intervalDays: { type: "INTEGER", nullable: true, description: "for custom: every N days" },
+          durationMinutes: { type: "INTEGER", nullable: true },
+          preferredTimeOfDay: { type: "STRING", nullable: true, enum: ["morning", "afternoon", "evening"] },
+        },
+        required: ["title", "pillarId", "frequency"],
+      },
+    },
+    {
+      name: "plan_week",
+      description: "Run the weekly planner to schedule the user's open tasks. Takes no arguments.",
+      parameters: { type: "OBJECT", properties: {} },
+    },
+  ]
+}
+
+function contextMessage(ctx: AssistantContext): string {
+  const pillars = ctx.pillars.map((p) => `${p.id}: ${p.name}`).join(", ")
+  const underserved = ctx.effort
+    .filter((e) => e.percentOfTarget < 100)
+    .map((e) => e.pillarName)
+    .join(", ")
+  return `Today is ${ctx.today}.
+Pillars (id: name): ${pillars || "(none yet)"}.
+${underserved ? `Pillars currently under their target effort: ${underserved}.` : ""}`
+}
+
+type GeminiPart =
+  | { text: string }
+  | { functionCall: { name: string; args: Record<string, unknown>; id?: string } }
+  | { functionResponse: { name: string; id?: string; response: Record<string, unknown> } }
+type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] }
+
+function findFunctionCall(parts: GeminiPart[] | undefined) {
+  return parts?.find(
+    (p): p is Extract<GeminiPart, { functionCall: unknown }> =>
+      typeof p === "object" && p !== null && "functionCall" in p
+  )?.functionCall
+}
+
+async function callGemini(apiKey: string, contents: GeminiContent[]): Promise<GeminiContent> {
+  const res = await fetch(`${GEMINI_BASE}/${DEFAULT_MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents,
+      tools: [{ functionDeclarations: functionDeclarations() }],
+      toolConfig: { functionCallingConfig: { mode: "ANY" } },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+    }),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "")
+    throw new Error(`Gemini API ${res.status}: ${detail.slice(0, 300)}`)
+  }
+  const data = (await res.json()) as { candidates?: { content?: GeminiContent }[] }
+  const content = data.candidates?.[0]?.content
+  if (!content) throw new Error("Gemini API: empty response")
+  return { role: "model", parts: content.parts ?? [] }
+}
+
+/**
+ * Runs (or resumes) the agentic loop. `priorMessages` carries the transcript
+ * from an earlier turn; on resume the caller appends the user's answer via
+ * {@link appendAnswer} before calling. Returns a clarifying question (pause) or
+ * a final proposal.
+ */
+export async function runAssistantAgent(
+  ctx: AssistantContext,
+  userInput: string,
+  priorMessages?: unknown[]
+): Promise<AssistantTurn> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages: [] }
+  }
+
+  const messages: GeminiContent[] =
+    priorMessages && priorMessages.length > 0
+      ? (priorMessages as GeminiContent[]).map((m) => m)
+      : [{ role: "user", parts: [{ text: `${contextMessage(ctx)}\n\nUser command: ${userInput}` }] }]
+
+  try {
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const content = await callGemini(apiKey, messages)
+      messages.push(content)
+
+      const fc = findFunctionCall(content.parts)
+      if (!fc) {
+        return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages }
+      }
+
+      if (fc.name === "ask_clarifying_question") {
+        const q = (fc.args ?? {}) as { text?: string; options?: ClarifyOption[] }
+        return {
+          kind: "question",
+          question: {
+            text: q.text ?? "Could you clarify what you'd like to do?",
+            taskRef: null,
+            field: "general",
+            options: Array.isArray(q.options) ? q.options : [],
+          },
+          messages,
+        }
+      }
+
+      const proposal = proposalFromCall(fc.name, fc.args ?? {}, ctx)
+      if (proposal) return { kind: "proposal", proposal, source: "ai", messages }
+    }
+    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages }
+  } catch {
+    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages: [] }
+  }
+}
+
+/** Validate + normalize a model tool call into a proposal we trust. */
+function proposalFromCall(name: string, args: Record<string, unknown>, ctx: AssistantContext): AssistantProposal | null {
+  const validPillar = new Set(ctx.pillars.map((p) => p.id))
+  const coercePillar = (v: unknown): number | null => (typeof v === "number" && validPillar.has(v) ? v : null)
+
+  if (name === "plan_week") return { kind: "plan_week" }
+
+  if (name === "breakdown_goal") {
+    const raw = Array.isArray(args.tasks) ? (args.tasks as Record<string, unknown>[]) : []
+    const tasks: BreakdownTask[] = raw
+      .filter((t) => typeof t.title === "string" && t.title.trim())
+      .slice(0, 6)
+      .map((t) => ({
+        title: String(t.title).trim(),
+        pillarId: coercePillar(t.pillarId) ?? ctx.pillars[0]?.id ?? null,
+        durationMinutes: clampDuration(t.durationMinutes),
+        deadline: typeof t.deadline === "string" && /^\d{4}-\d{2}-\d{2}$/.test(t.deadline) ? t.deadline : null,
+      }))
+    if (tasks.length === 0) return null
+    return { kind: "breakdown", goalText: typeof args.goalText === "string" ? args.goalText : "", tasks }
+  }
+
+  if (name === "create_recurring") {
+    const title = typeof args.title === "string" ? args.title.trim() : ""
+    if (!title) return null
+    const frequency: RecurringFrequency =
+      args.frequency === "weekly" || args.frequency === "custom" ? args.frequency : "daily"
+    const daysOfWeek = Array.isArray(args.daysOfWeek)
+      ? (args.daysOfWeek as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+      : []
+    const tod = args.preferredTimeOfDay
+    return {
+      kind: "recurring",
+      title,
+      pillarId: coercePillar(args.pillarId) ?? ctx.pillars[0]?.id ?? null,
+      frequency,
+      daysOfWeek,
+      intervalDays:
+        frequency === "custom" && typeof args.intervalDays === "number" ? Math.max(2, Math.round(args.intervalDays)) : null,
+      durationMinutes: clampDuration(args.durationMinutes),
+      preferredTimeOfDay: tod === "morning" || tod === "afternoon" || tod === "evening" ? tod : null,
+    }
+  }
+  return null
+}
+
+function clampDuration(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null
+  return Math.max(5, Math.min(480, Math.round(value)))
+}
+
+// ---------------------------------------------------------------------------
+// Heuristic fallback — mirrors the model's routing deterministically so the
+// command bar still works with no API key.
+// ---------------------------------------------------------------------------
+
+const WEEKDAY_TOKENS: Record<string, number> = {
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
+}
+
+/** Best-effort pillar match: pick the pillar whose name appears in the text. */
+function matchPillar(text: string, pillars: AssistantPillar[]): number | null {
+  const lower = text.toLowerCase()
+  for (const p of pillars) {
+    if (p.name && lower.includes(p.name.toLowerCase())) return p.id
+  }
+  return pillars[0]?.id ?? null
+}
+
+export function heuristicProposal(ctx: AssistantContext, input: string): AssistantProposal {
+  const text = input.trim()
+  const lower = text.toLowerCase()
+
+  // plan_week intent
+  if (/\b(plan|organi[sz]e|schedule|sort out)\b/.test(lower) && /\b(week|day|schedule)\b/.test(lower)) {
+    return { kind: "plan_week" }
+  }
+
+  // recurring intent: explicit cadence words or weekday tokens present
+  const tokens = lower.split(/[^a-z]+/).filter(Boolean)
+  const days = Array.from(new Set(tokens.map((t) => WEEKDAY_TOKENS[t]).filter((n): n is number => n !== undefined)))
+  const everyN = lower.match(/every\s+(\d+)\s+day/)
+  const isDaily = /\b(daily|every\s*day|each\s*day)\b/.test(lower)
+  const isWeekly = days.length > 0 || /\b(weekly|every\s*week)\b/.test(lower)
+
+  if (isDaily || isWeekly || everyN) {
+    // Strip the cadence portion to get a clean title.
+    const title =
+      text
+        .replace(/\b(every|each)\b.*$/i, "")
+        .replace(/\b(daily|weekly)\b/gi, "")
+        .replace(/\b(on\s+)?(mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)[a-z]*\b/gi, "")
+        .replace(/[\/,]+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim() || text
+    const frequency: RecurringFrequency = everyN ? "custom" : isWeekly && !isDaily ? "weekly" : "daily"
+    return {
+      kind: "recurring",
+      title,
+      pillarId: matchPillar(text, ctx.pillars),
+      frequency,
+      daysOfWeek: frequency === "weekly" ? days : [],
+      intervalDays: everyN ? Math.max(2, parseInt(everyN[1], 10)) : null,
+      durationMinutes: null,
+      preferredTimeOfDay: /\bmorning\b/.test(lower)
+        ? "morning"
+        : /\bafternoon\b/.test(lower)
+          ? "afternoon"
+          : /\b(evening|night)\b/.test(lower)
+            ? "evening"
+            : null,
+    }
+  }
+
+  // Otherwise treat it as a goal to break down. Split on obvious separators,
+  // else propose a single task for the whole goal.
+  const pillarId = matchPillar(text, ctx.pillars)
+  const parts = text
+    .split(/,| and | then |;/i)
+    .map((s) => s.replace(/^(learn|finish|complete|do|study)\s+/i, "").trim())
+    .filter(Boolean)
+  const titles = parts.length > 1 ? parts.slice(0, 6) : [text]
+  return {
+    kind: "breakdown",
+    goalText: text,
+    tasks: titles.map((title) => ({ title, pillarId, durationMinutes: null, deadline: null })),
+  }
+}

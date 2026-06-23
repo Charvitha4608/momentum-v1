@@ -536,6 +536,64 @@ export async function acceptAllProposed(dates: string[]) {
   return rows.length
 }
 
+// ---------------------------------------------------------------------------
+// Command-bar assistant staging
+// ---------------------------------------------------------------------------
+
+/**
+ * Stage a set of assistant-proposed tasks (from breakdown_goal) as `ai_schedule`
+ * 'proposed' rows for today, unscheduled (no start time). This reuses the exact
+ * accept/edit/reject + feedback machinery the AI Planner already uses: accepting
+ * a row with no targetId but a pillarId creates the backing target. Returns the
+ * staged items so the command bar can preview them.
+ */
+export async function proposeAssistantTasks(
+  tasks: { title: string; pillarId: number | null; durationMinutes: number | null }[]
+): Promise<ScheduleItem[]> {
+  const userId = await getUserId()
+  const today = await getToday()
+  const clean = tasks.filter((t) => t.title.trim() && t.pillarId != null)
+  if (clean.length === 0) return []
+
+  const inserted = await db
+    .insert(aiSchedule)
+    .values(
+      clean.map((t) => ({
+        userId,
+        sessionId: null,
+        targetId: null,
+        pillarId: t.pillarId,
+        title: t.title.trim(),
+        date: today,
+        startTime: null,
+        endTime: null,
+        durationMinutes: t.durationMinutes ?? 30,
+        timeOfDay: "any",
+        reasoning: "From your goal breakdown",
+        priority: 5,
+        status: "proposed",
+        aiGenerated: true,
+      }))
+    )
+    .returning({ id: aiSchedule.id })
+
+  const ids = new Set(inserted.map((r) => r.id))
+  revalidatePath("/calendar")
+  revalidatePath("/")
+  const todayItems = await readSchedule(userId, [today])
+  return todayItems.filter((it) => ids.has(it.id))
+}
+
+/**
+ * Log a proposal-level accept/reject into the same `ai_schedule_feedback`
+ * learning loop the planner uses. Used for assistant proposals (e.g. recurring)
+ * that don't map to a single `ai_schedule` row.
+ */
+export async function logProposalFeedback(action: "accept" | "reject", pillarId: number | null) {
+  const userId = await getUserId()
+  await db.insert(aiScheduleFeedback).values({ userId, scheduleId: null, targetId: null, pillarId, action })
+}
+
 /** Discard all proposals (proposed + edited, keeps accepted) for the dates. */
 export async function clearProposed(dates: string[]) {
   const userId = await getUserId()
