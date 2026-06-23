@@ -15,20 +15,20 @@ export function StatCard({
   const isStreak = variant === "streak"
   return (
     <Card className="elevate-hover flex-1">
-      <CardContent className="flex items-center gap-3">
-        {/* COLOR: streak badge uses destructive (flame/red for an active streak); points badge uses primary */}
+      <CardContent className="flex items-center gap-4">
+        {/* COLOR: streak badge uses coral (flame for an active streak); points badge uses brand */}
         <span
           className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
-            isStreak ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary"
+            isStreak ? "bg-coral-soft text-coral" : "bg-brand-soft text-brand"
           }`}
         >
           {isStreak ? <Flame className="size-5" /> : <Trophy className="size-5" />}
         </span>
         <div>
-          <div className="text-2xl font-semibold tabular-nums">
+          <div className="text-[26px] font-extrabold leading-none tracking-tight tabular-nums">
             <CountUp value={value} />
           </div>
-          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className="mt-1.5 text-xs text-muted-foreground">{label}</div>
         </div>
       </CardContent>
     </Card>

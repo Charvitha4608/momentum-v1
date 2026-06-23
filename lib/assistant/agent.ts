@@ -64,7 +64,27 @@ export type RecurringProposal = {
 
 export type PlanWeekProposal = { kind: "plan_week" }
 
-export type AssistantProposal = BreakdownProposal | RecurringProposal | PlanWeekProposal
+// A measurable-quantity-by-a-deadline goal ("do 50 questions in 2 weeks").
+// Applied as a long-term goal PLUS a recurring task that generates ~perSession
+// units each occurrence and stops at the deadline, so the total is reached by
+// then. perSession is computed deterministically from targetValue and how many
+// occurrences the cadence yields before the deadline.
+export type GoalPlanProposal = {
+  kind: "goal_plan"
+  goalTitle: string
+  pillarId: number | null
+  unit: string // e.g. "questions" — for display in the task title
+  targetValue: number
+  deadline: string // YYYY-MM-DD
+  frequency: "daily" | "weekly"
+  daysOfWeek: number[] // 0=Sun..6=Sat, for 'weekly'
+  perSession: number
+  occurrences: number
+  durationMinutes: number | null
+  preferredTimeOfDay: Exclude<TimeOfDay, "any"> | null
+}
+
+export type AssistantProposal = BreakdownProposal | RecurringProposal | PlanWeekProposal | GoalPlanProposal
 
 export type AssistantTurn =
   | { kind: "question"; question: ClarifyingQuestion; messages: unknown[] }
@@ -73,12 +93,14 @@ export type AssistantTurn =
 const SYSTEM_PROMPT = `You are the command bar assistant inside Momentum, a personal-growth app where users invest effort into "pillars" (life areas like DSA, Gym, Reading).
 
 The user types one short natural-language command. Turn it into exactly ONE proposal by calling exactly one tool:
-- breakdown_goal: when the user states a goal or project (e.g. "learn React", "finish NeetCode 150"). Break it into 2-6 concrete, actionable tasks and map EACH task to the most relevant existing pillar by id. Tasks are unscheduled to-dos.
-- create_recurring: when the user describes a repeating habit (e.g. "gym mon/wed/fri", "read 30 min every day", "review notes every 3 days"). Map it to the most relevant pillar.
+- plan_goal: when the user states a goal to reach a measurable QUANTITY by a TIME (e.g. "do 50 questions in 2 weeks", "read 12 books this year", "solve 100 problems in a month", "run 60 km in 3 weeks"). This is the most important case to get right. Do NOT restate it as a single task. Instead figure out the total quantity, its unit, and a concrete deadline date, then pick a realistic cadence (daily, or weekly on specific weekdays) so the work is SPREAD OUT and the total is finished by the deadline. The app computes the per-session amount and creates a repeating task plus a tracked goal automatically.
+- breakdown_goal: when the user states a goal or project WITHOUT a measurable quantity-by-deadline (e.g. "learn React", "prepare for the interview"). Break it into 2-6 concrete, actionable tasks and map EACH task to the most relevant existing pillar by id. Tasks are unscheduled to-dos.
+- create_recurring: when the user describes a repeating habit with no fixed end total (e.g. "gym mon/wed/fri", "read 30 min every day", "review notes every 3 days"). Map it to the most relevant pillar.
 - plan_week: when the user asks to schedule, organize, or plan their week/day (e.g. "plan my week", "organize my schedule"). Takes no arguments.
 
 Rules:
 - ALWAYS choose a pillar id from the provided pillars list. Never invent ids.
+- For plan_goal, "deadline" must be an absolute YYYY-MM-DD date computed from today (e.g. "2 weeks" = today + 14 days). Prefer a daily cadence; use weekly with specific weekdays only if the user implies rest days (e.g. "weekdays", "mon-sat").
 - Nothing you propose is applied automatically; the user reviews and confirms it. So prefer proposing over asking.
 - Only call ask_clarifying_question when the command is too ambiguous to map to any tool, and give 2-4 concrete quick-reply options (never free text).
 - You must always respond by calling exactly one tool.`
@@ -131,6 +153,31 @@ function functionDeclarations() {
           },
         },
         required: ["goalText", "tasks"],
+      },
+    },
+    {
+      name: "plan_goal",
+      description:
+        "Distribute a 'reach QUANTITY by DEADLINE' goal into a repeating task plus a tracked long-term goal. Use for goals like 'do 50 questions in 2 weeks'. Do NOT use breakdown_goal for these.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          goalTitle: { type: "STRING", description: "short goal name, e.g. 'Do 50 questions'" },
+          pillarId: { type: "INTEGER", description: "an id from the pillars list" },
+          unit: { type: "STRING", nullable: true, description: "the unit of work, e.g. 'questions', 'pages', 'km'" },
+          targetValue: { type: "INTEGER", description: "the total quantity to reach, e.g. 50" },
+          deadline: { type: "STRING", description: "absolute YYYY-MM-DD by which the total must be done" },
+          frequency: { type: "STRING", enum: ["daily", "weekly"], description: "how often to work toward it" },
+          daysOfWeek: {
+            type: "ARRAY",
+            nullable: true,
+            description: "for weekly frequency: integers 0=Sun..6=Sat (e.g. Mon-Sat = [1,2,3,4,5,6])",
+            items: { type: "INTEGER" },
+          },
+          durationMinutes: { type: "INTEGER", nullable: true, description: "rough minutes per session" },
+          preferredTimeOfDay: { type: "STRING", nullable: true, enum: ["morning", "afternoon", "evening"] },
+        },
+        required: ["goalTitle", "pillarId", "targetValue", "deadline", "frequency"],
       },
     },
     {
@@ -270,6 +317,38 @@ function proposalFromCall(name: string, args: Record<string, unknown>, ctx: Assi
 
   if (name === "plan_week") return { kind: "plan_week" }
 
+  if (name === "plan_goal") {
+    const goalTitle = typeof args.goalTitle === "string" ? args.goalTitle.trim() : ""
+    const targetValue = typeof args.targetValue === "number" ? Math.round(args.targetValue) : 0
+    const deadline = typeof args.deadline === "string" && /^\d{4}-\d{2}-\d{2}$/.test(args.deadline) ? args.deadline : null
+    if (!goalTitle || targetValue <= 0 || !deadline || deadline <= ctx.today) return null
+
+    const frequency: "daily" | "weekly" = args.frequency === "weekly" ? "weekly" : "daily"
+    let daysOfWeek = Array.isArray(args.daysOfWeek)
+      ? Array.from(new Set((args.daysOfWeek as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))).sort()
+      : []
+    if (frequency === "weekly" && daysOfWeek.length === 0) daysOfWeek = [1, 2, 3, 4, 5, 6] // sensible default: Mon-Sat
+    const tod = args.preferredTimeOfDay
+
+    const occurrences = countOccurrences(ctx.today, deadline, frequency, daysOfWeek)
+    const perSession = Math.max(1, Math.ceil(targetValue / Math.max(1, occurrences)))
+
+    return {
+      kind: "goal_plan",
+      goalTitle,
+      pillarId: coercePillar(args.pillarId) ?? ctx.pillars[0]?.id ?? null,
+      unit: typeof args.unit === "string" && args.unit.trim() ? args.unit.trim() : "",
+      targetValue,
+      deadline,
+      frequency,
+      daysOfWeek: frequency === "weekly" ? daysOfWeek : [],
+      perSession,
+      occurrences,
+      durationMinutes: clampDuration(args.durationMinutes),
+      preferredTimeOfDay: tod === "morning" || tod === "afternoon" || tod === "evening" ? tod : null,
+    }
+  }
+
   if (name === "breakdown_goal") {
     const raw = Array.isArray(args.tasks) ? (args.tasks as Record<string, unknown>[]) : []
     const tasks: BreakdownTask[] = raw
@@ -312,6 +391,32 @@ function proposalFromCall(name: string, args: Record<string, unknown>, ctx: Assi
 function clampDuration(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null
   return Math.max(5, Math.min(480, Math.round(value)))
+}
+
+/**
+ * Counts how many times a cadence fires from `today` through `deadline`
+ * (inclusive) — i.e. how many work sessions are available to hit the total.
+ * Daily counts every day; weekly counts only the listed weekdays. Capped at a
+ * year of iterations so a far-off deadline can't spin.
+ */
+/** Returns `today` shifted forward by `deltaDays`, as YYYY-MM-DD (UTC). */
+function shiftToday(today: string, deltaDays: number): string {
+  const [y, m, d] = today.split("-").map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d) + deltaDays * 864e5)
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`
+}
+
+function countOccurrences(today: string, deadline: string, frequency: "daily" | "weekly", daysOfWeek: number[]): number {
+  const [ty, tm, td] = today.split("-").map(Number)
+  const [dy, dm, dd] = deadline.split("-").map(Number)
+  let cursor = Date.UTC(ty, tm - 1, td)
+  const end = Date.UTC(dy, dm - 1, dd)
+  const days = new Set(daysOfWeek)
+  let count = 0
+  for (let i = 0; cursor <= end && i <= 366; i++, cursor += 864e5) {
+    if (frequency === "daily" || days.has(new Date(cursor).getUTCDay())) count++
+  }
+  return count
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +485,34 @@ export function heuristicProposal(ctx: AssistantContext, input: string): Assista
           : /\b(evening|night)\b/.test(lower)
             ? "evening"
             : null,
+    }
+  }
+
+  // Quantity-by-deadline goal: "<total> ... in <n> <period>". Distribute it into
+  // a daily goal plan rather than a single restated to-do.
+  const periodDays: Record<string, number> = { day: 1, week: 7, month: 30, year: 365 }
+  const goalMatch = lower.match(/\b(\d+)\b.*?\b(?:in|within|over)\s+(?:(\d+)\s+|an?\s+|the\s+)?(day|week|month|year)s?\b/)
+  if (goalMatch) {
+    const targetValue = parseInt(goalMatch[1], 10)
+    const periods = goalMatch[2] ? Math.max(1, parseInt(goalMatch[2], 10)) : 1
+    const spanDays = periods * (periodDays[goalMatch[3]] ?? 7)
+    if (Number.isFinite(targetValue) && targetValue > 0 && spanDays > 0) {
+      const deadline = shiftToday(ctx.today, spanDays)
+      const occurrences = countOccurrences(ctx.today, deadline, "daily", [])
+      return {
+        kind: "goal_plan",
+        goalTitle: text,
+        pillarId: matchPillar(text, ctx.pillars),
+        unit: "",
+        targetValue,
+        deadline,
+        frequency: "daily",
+        daysOfWeek: [],
+        perSession: Math.max(1, Math.ceil(targetValue / Math.max(1, occurrences))),
+        occurrences,
+        durationMinutes: null,
+        preferredTimeOfDay: null,
+      }
     }
   }
 

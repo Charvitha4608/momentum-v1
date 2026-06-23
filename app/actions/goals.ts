@@ -121,8 +121,9 @@ export type LongTermGoalWithProgress = {
 }
 
 /**
- * Long-term goals with auto-computed progress: the count of completed targets
- * in the goal's pillar created on/after the goal's creation date, vs `targetValue`.
+ * Long-term goals with auto-computed progress: the summed `quantity` of
+ * completed targets explicitly linked to the goal (`longTermGoalId`), vs
+ * `targetValue`.
  */
 export async function getLongTermGoals(): Promise<LongTermGoalWithProgress[]> {
   const userId = await getUserId()
@@ -147,20 +148,18 @@ export async function getLongTermGoals(): Promise<LongTermGoalWithProgress[]> {
 
   const result: LongTermGoalWithProgress[] = []
   for (const g of goals) {
-    const createdDate = g.createdAt.toISOString().slice(0, 10)
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
+    const [{ done }] = await db
+      .select({ done: sql<number>`coalesce(sum(${targets.quantity}), 0)` })
       .from(targets)
       .where(
         and(
           eq(targets.userId, userId),
-          eq(targets.pillarId, g.pillarId),
-          eq(targets.completed, true),
-          gte(targets.originalDate, createdDate)
+          eq(targets.longTermGoalId, g.id),
+          eq(targets.completed, true)
         )
       )
 
-    const progress = Number(count)
+    const progress = Number(done)
     const completed = g.completed || progress >= g.targetValue
     if (completed && !g.completed) {
       await db.update(longTermGoals).set({ completed: true }).where(eq(longTermGoals.id, g.id))
@@ -182,6 +181,18 @@ export async function getLongTermGoals(): Promise<LongTermGoalWithProgress[]> {
   }
 
   return result
+}
+
+export type ActiveLongTermGoal = { id: number; title: string; pillarId: number }
+
+/** Incomplete long-term goals, for the add-task form's goal picker. */
+export async function getActiveLongTermGoals(): Promise<ActiveLongTermGoal[]> {
+  const userId = await getUserId()
+  return db
+    .select({ id: longTermGoals.id, title: longTermGoals.title, pillarId: longTermGoals.pillarId })
+    .from(longTermGoals)
+    .where(and(eq(longTermGoals.userId, userId), eq(longTermGoals.completed, false)))
+    .orderBy(asc(longTermGoals.deadline))
 }
 
 export async function createLongTermGoal(title: string, pillarId: number, targetValue: number, deadline: string) {

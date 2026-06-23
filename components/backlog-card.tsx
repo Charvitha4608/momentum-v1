@@ -61,7 +61,7 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
         </h2>
 
         {groups.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing carried over from previous days 🎉</p>
+          <p className="text-sm text-muted-foreground">All clear — nothing carried over from earlier days 🎉</p>
         ) : (
           <div className="flex flex-col gap-4">
             <AnimatePresence initial={false}>

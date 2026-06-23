@@ -140,6 +140,10 @@ async function generateRecurringTargets(userId: string, today: string) {
       // can pack generated targets without re-asking for duration/time-of-day.
       durationMinutes: task.durationMinutes,
       preferredTimeOfDay: task.preferredTimeOfDay,
+      // Carry the template's quantity and goal link so each completed session
+      // advances its long-term goal by `quantity` (see getLongTermGoals).
+      quantity: task.quantity,
+      longTermGoalId: task.longTermGoalId,
     })
   }
   await upsertDailyStats(userId, today)
@@ -163,6 +167,10 @@ export async function getTodayTargets(today?: string) {
       pillarName: pillars.name,
       pillarIcon: pillars.icon,
       pillarColor: pillars.color,
+      quantity: targets.quantity,
+      estimatedMinutes: targets.estimatedMinutes,
+      actualMinutes: targets.actualMinutes,
+      longTermGoalId: targets.longTermGoalId,
       durationMinutes: targets.durationMinutes,
       preferredTimeOfDay: targets.preferredTimeOfDay,
       deadline: targets.deadline,
@@ -180,7 +188,19 @@ export type TargetSchedulingMeta = {
   deadline?: string | null
 }
 
-export async function addTarget(title: string, pillarId: number, today?: string, meta?: TargetSchedulingMeta) {
+export type TargetEffortMeta = {
+  quantity?: number
+  estimatedMinutes?: number | null
+  longTermGoalId?: number | null
+}
+
+export async function addTarget(
+  title: string,
+  pillarId: number,
+  today?: string,
+  meta?: TargetSchedulingMeta,
+  effort?: TargetEffortMeta
+) {
   const userId = await getUserId()
   const day = today ?? (await getToday())
   const trimmed = title.trim()
@@ -191,6 +211,8 @@ export async function addTarget(title: string, pillarId: number, today?: string,
     .from(targets)
     .where(and(eq(targets.userId, userId), eq(targets.date, day)))
 
+  const quantity = effort?.quantity && effort.quantity > 0 ? Math.round(effort.quantity) : 1
+
   const [created] = await db
     .insert(targets)
     .values({
@@ -200,6 +222,9 @@ export async function addTarget(title: string, pillarId: number, today?: string,
       originalDate: day,
       sortOrder: (max ?? 0) + 1,
       pillarId,
+      quantity,
+      estimatedMinutes: effort?.estimatedMinutes ?? null,
+      longTermGoalId: effort?.longTermGoalId ?? null,
       durationMinutes: meta?.durationMinutes ?? null,
       preferredTimeOfDay: meta?.preferredTimeOfDay ?? null,
       deadline: meta?.deadline ?? null,
@@ -208,6 +233,37 @@ export async function addTarget(title: string, pillarId: number, today?: string,
   await upsertDailyStats(userId, day)
   revalidatePath("/")
   return created
+}
+
+export type TargetDetails = {
+  pillarId?: number
+  quantity?: number
+  estimatedMinutes?: number | null
+  longTermGoalId?: number | null
+  durationMinutes?: number | null
+  preferredTimeOfDay?: string | null
+}
+
+/**
+ * Update an existing target's editable details (pillar + effort/scheduling
+ * fields) in one call. Each field is only written when provided, so callers can
+ * send a partial patch. Used by the per-row "edit details" popover so any
+ * target — including AI-generated ones — can be reshaped after creation.
+ */
+export async function updateTargetDetails(id: number, details: TargetDetails) {
+  const userId = await getUserId()
+  await db
+    .update(targets)
+    .set({
+      ...(details.pillarId !== undefined ? { pillarId: details.pillarId } : {}),
+      ...(details.quantity !== undefined ? { quantity: details.quantity > 0 ? Math.round(details.quantity) : 1 } : {}),
+      ...(details.estimatedMinutes !== undefined ? { estimatedMinutes: details.estimatedMinutes } : {}),
+      ...(details.longTermGoalId !== undefined ? { longTermGoalId: details.longTermGoalId } : {}),
+      ...(details.durationMinutes !== undefined ? { durationMinutes: details.durationMinutes } : {}),
+      ...(details.preferredTimeOfDay !== undefined ? { preferredTimeOfDay: details.preferredTimeOfDay } : {}),
+    })
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  revalidatePath("/")
 }
 
 /** Update a target's planner metadata (duration / time-of-day / deadline). */
@@ -257,7 +313,12 @@ async function notifyOvertaken(userId: string, oldPoints: number, newPoints: num
   }
 }
 
-export async function toggleTarget(id: number, completed: boolean, today?: string) {
+export async function toggleTarget(
+  id: number,
+  completed: boolean,
+  today?: string,
+  actualMinutes?: number | null
+) {
   const userId = await getUserId()
   const day = today ?? (await getToday())
 
@@ -266,9 +327,16 @@ export async function toggleTarget(id: number, completed: boolean, today?: strin
     .from(targets)
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
 
+  // Completing records the time spent; un-completing clears it so a re-check
+  // re-prompts for a fresh value.
+  const cleanMinutes =
+    completed && actualMinutes != null && Number.isFinite(actualMinutes) && actualMinutes >= 0
+      ? Math.round(actualMinutes)
+      : null
+
   await db
     .update(targets)
-    .set({ completed, completedDate: completed ? day : null })
+    .set({ completed, completedDate: completed ? day : null, actualMinutes: completed ? cleanMinutes : null })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   const snapshot = await upsertDailyStats(userId, day)
 

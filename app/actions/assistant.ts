@@ -10,6 +10,7 @@ import { getPillars } from "@/app/actions/pillars"
 import { getToday } from "@/lib/date"
 import { getEffortComparison } from "@/app/actions/reflection"
 import { createRecurringTask } from "@/app/actions/recurring"
+import { createLongTermGoal } from "@/app/actions/goals"
 import {
   startPlanning,
   answerPlanningQuestion,
@@ -25,6 +26,7 @@ import {
   type AssistantTurn,
   type ClarifyingQuestion,
   type RecurringProposal,
+  type GoalPlanProposal,
 } from "@/lib/assistant/agent"
 
 const RECURRING_POINTS = 10
@@ -48,6 +50,7 @@ export type AssistantResult =
   | { kind: "question"; question: ClarifyingQuestion; messages: unknown[]; source: "ai" | "heuristic" }
   | { kind: "breakdown"; goalText: string; items: ScheduleItem[]; source: "ai" | "heuristic" }
   | { kind: "recurring"; proposal: RecurringProposal; pillarName: string | null; source: "ai" | "heuristic" }
+  | { kind: "goal_plan"; proposal: GoalPlanProposal; pillarName: string | null; source: "ai" | "heuristic" }
   | { kind: "plan_week"; sessionId: number; days: string[]; items: ScheduleItem[] }
   | { kind: "planner_question"; sessionId: number; question: ClarifyingQuestion }
   | { kind: "empty"; message: string }
@@ -69,6 +72,11 @@ async function finishTurn(ctx: AssistantContext, turn: AssistantTurn): Promise<A
       proposal.tasks.map((t) => ({ title: t.title, pillarId: t.pillarId, durationMinutes: t.durationMinutes }))
     )
     return { kind: "breakdown", goalText: proposal.goalText, items, source: turn.source }
+  }
+
+  if (proposal.kind === "goal_plan") {
+    const pillarName = ctx.pillars.find((p) => p.id === proposal.pillarId)?.name ?? null
+    return { kind: "goal_plan", proposal, pillarName, source: turn.source }
   }
 
   // recurring
@@ -141,5 +149,46 @@ export async function confirmRecurringProposal(proposal: RecurringProposal): Pro
 
 /** Record a rejected recurring proposal in the learning loop. */
 export async function rejectRecurringProposal(proposal: RecurringProposal): Promise<void> {
+  await logProposalFeedback("reject", proposal.pillarId)
+}
+
+// --- Goal plan: confirm / reject (apply step) -------------------------------
+
+/**
+ * Apply a confirmed "quantity by deadline" goal: create the long-term goal and
+ * a recurring task that generates ~perSession units each occurrence and stops
+ * at the deadline. The recurring task carries `quantity` + `longTermGoalId`, so
+ * each completed session auto-advances the goal toward its target.
+ */
+export async function confirmGoalPlan(proposal: GoalPlanProposal): Promise<{ ok: boolean; error?: string }> {
+  if (proposal.pillarId == null) return { ok: false, error: "Pick a pillar first." }
+  const goalTitle = proposal.goalTitle.trim()
+  if (!goalTitle) return { ok: false, error: "Give the goal a name." }
+  if (!Number.isFinite(proposal.targetValue) || proposal.targetValue <= 0) return { ok: false, error: "Set a target amount." }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(proposal.deadline)) return { ok: false, error: "Set a deadline." }
+  if (proposal.frequency === "weekly" && proposal.daysOfWeek.length === 0) {
+    return { ok: false, error: "Pick at least one day of the week." }
+  }
+
+  const goal = await createLongTermGoal(goalTitle, proposal.pillarId, proposal.targetValue, proposal.deadline)
+  if (!goal) return { ok: false, error: "Couldn't create the goal." }
+
+  const sessionTitle = proposal.unit
+    ? `${goalTitle}: ${proposal.perSession} ${proposal.unit}`
+    : `${goalTitle} (${proposal.perSession}/session)`
+  await createRecurringTask(sessionTitle, proposal.pillarId, RECURRING_POINTS, proposal.frequency, {
+    daysOfWeek: proposal.frequency === "weekly" ? proposal.daysOfWeek : undefined,
+    endDate: proposal.deadline,
+    durationMinutes: proposal.durationMinutes,
+    preferredTimeOfDay: proposal.preferredTimeOfDay,
+    quantity: proposal.perSession,
+    longTermGoalId: goal.id,
+  })
+  await logProposalFeedback("accept", proposal.pillarId)
+  return { ok: true }
+}
+
+/** Record a rejected goal plan in the learning loop. */
+export async function rejectGoalPlan(proposal: GoalPlanProposal): Promise<void> {
   await logProposalFeedback("reject", proposal.pillarId)
 }

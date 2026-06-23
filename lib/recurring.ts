@@ -3,6 +3,7 @@ type RecurringTaskConfig = {
   daysOfWeek: string | null // JSON array of 0-6 (Sun-Sat), for 'weekly'
   intervalDays: number | null // for 'custom'
   anchorDate: string // YYYY-MM-DD
+  endDate?: string | null // YYYY-MM-DD inclusive; past this the task stops generating
 }
 
 /** Day count between two YYYY-MM-DD dates (anchored at UTC midnight). */
@@ -21,9 +22,13 @@ function daysBetween(fromDate: string, toDate: string): number {
  * - weekly: due on the days of week listed in `daysOfWeek` (0=Sun..6=Sat),
  *   on/after `anchorDate`.
  * - custom: due every `intervalDays` days, counting from `anchorDate`.
+ *
+ * An `endDate` (inclusive) caps the schedule: nothing is due after it, so a
+ * goal-backed task stops generating once its deadline passes.
  */
 export function isDueOn(task: RecurringTaskConfig, dateStr: string): boolean {
   if (dateStr < task.anchorDate) return false
+  if (task.endDate && dateStr > task.endDate) return false
 
   switch (task.frequency) {
     case "daily":

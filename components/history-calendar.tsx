@@ -11,22 +11,25 @@ import { getTargetsForDate, type DateTarget, type DayStat } from "@/app/actions/
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
-// COLOR: calendar heatmap cells — bg from --calendar-* scale (globals.css), text is
-// whichever of background/foreground reads legibly against that cell's fill.
+// COLOR: calendar heatmap is now a single dot inside each subtle square cell.
+// Dot color comes from the redesign tokens (globals.css): inert grey → coral →
+// amber → brand → green as completion climbs.
 const LEGEND = [
-  { label: "No targets", bg: "var(--color-calendar-none)", text: "#18172d" },
-  { label: "0% completed", bg: "var(--color-calendar-empty)", text: "#e8eae7" },
-  { label: "1-49% completed", bg: "var(--color-calendar-low)", text: "#18172d" },
-  { label: "50-99% completed", bg: "var(--color-calendar-mid)", text: "#e8eae7" },
-  { label: "100% completed", bg: "var(--color-calendar-full)", text: "#e8eae7" },
+  { label: "No targets", dot: "var(--tx-faint)" },
+  { label: "0% completed", dot: "var(--coral)" },
+  { label: "1-49% completed", dot: "var(--amber)" },
+  { label: "50-99% completed", dot: "var(--accent-1)" },
+  { label: "100% completed", dot: "var(--green)" },
 ] as const
 
-function cellStyle(day: DayStat | undefined, isToday: boolean) {
-  if (!day || day.totalTargets === 0) return LEGEND[0]
-  if (day.completionPercent === 0) return isToday ? LEGEND[0] : LEGEND[1]
-  if (day.completionPercent < 0.5) return LEGEND[2]
-  if (day.completionPercent < 1) return LEGEND[3]
-  return LEGEND[4]
+// Heatmap dot color for a cell, or null for cells that should stay dot-free
+// (no targets, and today before anything is done — no discouraging red).
+function heatDot(day: DayStat | undefined, isToday: boolean): string | null {
+  if (!day || day.totalTargets === 0) return null
+  if (day.completionPercent === 0) return isToday ? null : LEGEND[1].dot
+  if (day.completionPercent < 0.5) return LEGEND[2].dot
+  if (day.completionPercent < 1) return LEGEND[3].dot
+  return LEGEND[4].dot
 }
 
 export function HistoryCalendar({
@@ -114,19 +117,27 @@ export function HistoryCalendar({
               if (!cell) return <div key={`empty-${i}`} className="aspect-square" />
               const stat = dayMap.get(cell.date)
               const isToday = cell.date === today
-              const style = cellStyle(stat, isToday)
+              const dot = heatDot(stat, isToday)
               return (
                 <button
                   key={cell.date}
                   type="button"
                   onClick={() => openDay(cell.date)}
                   className={cn(
-                    "flex aspect-square items-center justify-center rounded-md border border-border text-xs font-medium transition-transform hover:scale-105",
-                    isToday && "ring-2 ring-primary" // COLOR: today indicator — primary-color ring around the current day's cell
+                    "relative flex aspect-square flex-col items-center justify-center gap-1 rounded-[10px] border border-line bg-surface-1 text-xs font-medium text-muted-foreground transition-colors hover:border-line-2 hover:bg-surface-3",
+                    // COLOR: today gets a brand-tinted fill + a glowing accent ring (the ::after below)
+                    isToday && "border-brand bg-brand-soft font-semibold text-foreground"
                   )}
-                  style={{ backgroundColor: style.bg, color: style.text }}
                 >
-                  {cell.day}
+                  <span className="tabular-nums">{cell.day}</span>
+                  <span className="size-[5px] rounded-full" style={{ backgroundColor: dot ?? "transparent" }} />
+                  {isToday && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute -inset-px rounded-[10px]"
+                      style={{ boxShadow: "0 0 0 1px var(--accent-1), 0 0 16px -4px rgba(139, 124, 255, 0.7)" }}
+                    />
+                  )}
                 </button>
               )
             })}
@@ -136,7 +147,7 @@ export function HistoryCalendar({
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
           {LEGEND.map((item) => (
             <div key={item.label} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm border border-border" style={{ backgroundColor: item.bg }} />
+              <span className="size-2 rounded-full" style={{ backgroundColor: item.dot }} />
               <span className="text-[0.65rem] text-muted-foreground">{item.label}</span>
             </div>
           ))}

@@ -39,6 +39,28 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── Redesign design system (design/momentum-redesign.html) ──
+     Registered here so the raw tokens below become Tailwind v4
+     utility classes (bg-*, text-*, border-*, rounded-*). */
+  --color-canvas: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-brand: var(--accent-1); /* purple accent — bg-brand, text-brand, border-brand */
+  --color-brand-2: var(--accent-2);
+  --color-brand-soft: var(--accent-soft);
+  --color-brand-line: var(--accent-line);
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-amber: var(--amber);
+  --radius-card: var(--r-lg); /* rounded-card */
+  --radius-control: var(--r-md); /* rounded-control */
+  --radius-chip: var(--r-sm); /* rounded-chip */
 }
 
 :root {
@@ -70,6 +92,42 @@
   --calendar-low: #959ec9; /* COLOR: 1-49% completed */
   --calendar-mid: #4e5174; /* COLOR: 50-99% completed */
   --calendar-full: #28264B; /* COLOR: 100% completed */
+
+  /* ── Redesign design tokens (design/momentum-redesign.html) ──
+     Raw values for the new system. Not yet applied to any screen;
+     consumed via the @theme registrations above (bg-canvas,
+     bg-surface-2, border-line, text-brand, rounded-card, …) and the
+     gradient utilities (.bg-app-canvas, .bg-brand-gradient). */
+  --bg: #08080c; /* app canvas */
+  --bg-grad: radial-gradient(1200px 700px at 78% -10%, rgba(124, 108, 255, 0.1), transparent 55%),
+    radial-gradient(900px 600px at -5% 10%, rgba(255, 107, 94, 0.05), transparent 50%), #08080c;
+
+  --surface-1: rgba(255, 255, 255, 0.025); /* card */
+  --surface-2: rgba(255, 255, 255, 0.045); /* raised inside card */
+  --surface-3: rgba(255, 255, 255, 0.07); /* hover / control */
+
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
+
+  --tx: #ececef; /* redesign body text */
+  --tx-dim: #9b9bac; /* redesign secondary text */
+  --tx-faint: #62626f; /* redesign faint text / inert dots */
+
+  --accent-1: #8b7cff; /* brand purple */
+  --accent-2: #6d5dff;
+  --accent-soft: rgba(139, 124, 255, 0.14);
+  --accent-line: rgba(139, 124, 255, 0.3);
+  --accent-grad: linear-gradient(135deg, #9a8cff 0%, #6d5dff 100%);
+
+  --coral: #ff6e60;
+  --coral-soft: rgba(255, 110, 96, 0.13);
+  --green: #46d39a;
+  --green-soft: rgba(70, 211, 154, 0.13);
+  --amber: #f5b84b;
+
+  --r-lg: 18px;
+  --r-md: 13px;
+  --r-sm: 9px;
 }
 
 @layer base {
@@ -85,6 +143,33 @@
 }
 
 @layer utilities {
+  /* Redesign gradients — not expressible as color utilities, exposed as classes. */
+  .bg-app-canvas {
+    background: var(--bg-grad);
+  }
+  .bg-brand-gradient {
+    background: var(--accent-grad);
+  }
+
+  /* AI Planner card: accent-gradient wash + accent-line border with a soft
+     radial glow bleeding in from the top-right corner (design .ai-card). */
+  .ai-glow-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, rgba(139, 124, 255, 0.1), rgba(139, 124, 255, 0.02));
+    border: 1px solid var(--accent-line);
+  }
+  .ai-glow-card::after {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(139, 124, 255, 0.28), transparent 70%);
+    pointer-events: none;
+  }
+
   /* Subtle hover elevation for premium cards and interactive rows. */
   .elevate-hover {
     transition:

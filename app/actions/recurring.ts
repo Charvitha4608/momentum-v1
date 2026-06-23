@@ -34,7 +34,16 @@ export async function createRecurringTask(
   pillarId: number,
   points: number,
   frequency: RecurringFrequency,
-  config: { daysOfWeek?: number[]; intervalDays?: number; anchorDate?: string; durationMinutes?: number | null; preferredTimeOfDay?: string | null }
+  config: {
+    daysOfWeek?: number[]
+    intervalDays?: number
+    anchorDate?: string
+    durationMinutes?: number | null
+    preferredTimeOfDay?: string | null
+    endDate?: string | null
+    quantity?: number
+    longTermGoalId?: number | null
+  }
 ) {
   const userId = await getUserId()
   const trimmed = title.trim()
@@ -53,8 +62,11 @@ export async function createRecurringTask(
       daysOfWeek: frequency === "weekly" ? JSON.stringify(config.daysOfWeek ?? []) : null,
       intervalDays: frequency === "custom" ? config.intervalDays ?? null : null,
       anchorDate,
+      endDate: config.endDate ?? null,
       durationMinutes: config.durationMinutes ?? null,
       preferredTimeOfDay: config.preferredTimeOfDay ?? null,
+      quantity: config.quantity ?? 1,
+      longTermGoalId: config.longTermGoalId ?? null,
     })
     .returning()
 

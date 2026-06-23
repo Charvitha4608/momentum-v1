@@ -73,7 +73,7 @@ export default async function CalendarPage({
       <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
         <CalendarViewSwitcher view={view} />
         <HistoryCalendar year={year} month={month} days={days} today={today} />
-        <WeeklyScoreCard year={year} month={month} days={days} />
+        <WeeklyScoreCard year={year} month={month} days={days} today={today} />
       </div>
     </AppShell>
   )

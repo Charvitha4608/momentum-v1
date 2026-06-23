@@ -92,7 +92,15 @@ export const recurringTasks = pgTable("recurring_tasks", {
   daysOfWeek: text("daysOfWeek"), // JSON array, e.g. "[1,3,5]" (weekly)
   intervalDays: integer("intervalDays"), // custom: every N days
   anchorDate: text("anchorDate").notNull(), // YYYY-MM-DD, reference date for custom interval
+  endDate: text("endDate"), // YYYY-MM-DD inclusive last day this template generates targets (null = open-ended)
   active: boolean("active").notNull().default(true),
+  // `quantity` is the units of work each generated target represents (e.g. "5
+  // problems"), inherited by every generated target. `longTermGoalId` optionally
+  // ties those targets to a long-term goal so each completed session advances it
+  // — this is what lets a "do 50 questions in 2 weeks" goal be distributed into a
+  // repeating ~N-per-session task that finishes the total by the deadline.
+  quantity: integer("quantity").notNull().default(1),
+  longTermGoalId: integer("longTermGoalId").references(() => longTermGoals.id, { onDelete: "set null" }),
   // Scheduling hints inherited by every generated target, consumed by the AI
   // Planner. `durationMinutes` is the rough effort estimate; `preferredTimeOfDay`
   // is one of 'morning' | 'afternoon' | 'evening' (null = no preference).
@@ -121,6 +129,17 @@ export const targets = pgTable("targets", {
     .notNull()
     .references(() => pillars.id, { onDelete: "cascade" }),
   recurringTaskId: integer("recurringTaskId").references(() => recurringTasks.id, { onDelete: "set null" }),
+  // --- Effort & time tracking ---------------------------------------------
+  // `quantity` is how many units of work this target represents (e.g. "5
+  // problems"); it's what counts toward a linked long-term goal's progress.
+  // `estimatedMinutes` is the user's up-front time guess; `actualMinutes` is
+  // the time entered when the target is marked complete. `longTermGoalId`
+  // optionally ties this target to a long-term goal so completing it advances
+  // that goal by `quantity`.
+  quantity: integer("quantity").notNull().default(1),
+  estimatedMinutes: integer("estimatedMinutes"),
+  actualMinutes: integer("actualMinutes"),
+  longTermGoalId: integer("longTermGoalId").references(() => longTermGoals.id, { onDelete: "set null" }),
   // --- AI Planner scheduling metadata -------------------------------------
   // `durationMinutes` is the user's rough effort estimate for this task; the
   // planner uses it to pack tasks into available hours. `preferredTimeOfDay`

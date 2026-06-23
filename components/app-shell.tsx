@@ -4,7 +4,7 @@ import { Target } from "lucide-react"
 import { getUnreadCount } from "@/app/actions/notifications"
 import { getPillars } from "@/app/actions/pillars"
 import { BottomTabBar } from "@/components/bottom-tab-bar"
-import { CommandBar } from "@/components/command-bar"
+import { CommandBar, CommandBarTrigger } from "@/components/command-bar"
 import { PageTransition } from "@/components/page-transition"
 import { SignOutButton } from "@/components/sign-out-button"
 import { Sidebar } from "@/components/sidebar"
@@ -25,7 +25,7 @@ export async function AppShell({
   const [unreadCount, pillars] = await Promise.all([getUnreadCount(), getPillars()])
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="bg-app-canvas flex min-h-dvh">
       <TimezoneSync />
       <CommandBar pillars={pillars} />
       <Sidebar active={active} unreadCount={unreadCount} />
@@ -40,7 +40,10 @@ export async function AppShell({
               </span>
               <span>Momentum</span>
             </Link>
-            <SignOutButton />
+            <div className="flex items-center gap-2">
+              <CommandBarTrigger collapsed />
+              <SignOutButton />
+            </div>
           </div>
         </header>
 

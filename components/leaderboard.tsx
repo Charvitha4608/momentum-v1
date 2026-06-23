@@ -73,7 +73,7 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
 
         {rows.length <= 1 ? (
           <p className="text-sm text-muted-foreground">
-            Invite friends to start competing. The leaderboard ranks everyone by points, then streak.
+            Invite a friend to start competing — rankings go by points, then streak.
           </p>
         ) : (
           <ol className="flex flex-col gap-2">
