@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { Command, Sparkles, Loader2, Check, X, Pencil, ArrowRight, CalendarRange } from "lucide-react"
+import { Command, Sparkles, Loader2, Check, X, Pencil, ArrowRight, CalendarRange, Target } from "lucide-react"
 
 import {
   startAssistant,
@@ -11,17 +11,17 @@ import {
   answerPlannerQuestion,
   confirmRecurringProposal,
   rejectRecurringProposal,
+  confirmGoalPlan,
+  rejectGoalPlan,
   type AssistantResult,
 } from "@/app/actions/assistant"
 import {
   acceptScheduleItem,
   rejectScheduleItem,
   editScheduleItem,
-  acceptAllProposed,
-  clearProposed,
   type ScheduleItem,
 } from "@/app/actions/planner"
-import type { RecurringProposal } from "@/lib/assistant/agent"
+import type { RecurringProposal, GoalPlanProposal } from "@/lib/assistant/agent"
 import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { AiBadge } from "@/components/ai-badge"
 import { TIME_OF_DAY_LABELS, type TimeOfDay } from "@/lib/planner/schedule"
@@ -30,6 +30,35 @@ import { cn } from "@/lib/utils"
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const TOD_ORDER: TimeOfDay[] = ["morning", "afternoon", "evening", "any"]
 const EXAMPLES = ["Learn React fundamentals", "Gym mon/wed/fri", "Plan my week", "Read 30 min every day"]
+
+/** Visible launchers dispatch this to open the command bar (see CommandBarTrigger). */
+export const OPEN_COMMAND_BAR_EVENT = "momentum:open-command-bar"
+
+/** A discoverable button that opens the ⌘K command bar from anywhere in the chrome. */
+export function CommandBarTrigger({ collapsed = false, className }: { collapsed?: boolean; className?: string }) {
+  return (
+    <button
+      type="button"
+      aria-label="Open AI assistant"
+      onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_BAR_EVENT))}
+      className={cn(
+        "flex items-center rounded-lg border border-border py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground",
+        collapsed ? "justify-center px-2" : "gap-2 px-3",
+        className
+      )}
+    >
+      <Sparkles className="size-4 shrink-0 text-primary" />
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-left">Ask AI</span>
+          <kbd className="flex items-center gap-0.5 rounded-md border border-border px-1.5 py-0.5 text-[10px]">
+            <Command className="size-2.5" />K
+          </kbd>
+        </>
+      )}
+    </button>
+  )
+}
 
 export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
   const router = useRouter()
@@ -51,7 +80,8 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
     reset()
   }, [reset])
 
-  // Global ⌘K / Ctrl+K toggle, Esc to close.
+  // Global ⌘K / Ctrl+K toggle, Esc to close. A custom event lets visible
+  // launchers (sidebar / mobile header) open the bar without lifting state.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -62,8 +92,15 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
         close()
       }
     }
+    function onOpen() {
+      setOpen(true)
+    }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener(OPEN_COMMAND_BAR_EVENT, onOpen)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener(OPEN_COMMAND_BAR_EVENT, onOpen)
+    }
   }, [open, close])
 
   useEffect(() => {
@@ -180,7 +217,6 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
                 <ProposalItems
                   heading={result.goalText ? `Tasks for “${result.goalText}”` : "Proposed tasks"}
                   initialItems={result.items}
-                  dates={uniqueDates(result.items)}
                   confirmLabel="Add all tasks"
                   appliedLabel={(n) => `Added ${n} task${n === 1 ? "" : "s"} to your list.`}
                   onApplied={onApplied}
@@ -191,7 +227,6 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
                 <ProposalItems
                   heading="Proposed weekly schedule"
                   initialItems={result.items}
-                  dates={result.days}
                   confirmLabel="Accept all"
                   appliedLabel={(n) => `Scheduled ${n} task${n === 1 ? "" : "s"}.`}
                   onApplied={onApplied}
@@ -201,16 +236,16 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
               {result?.kind === "recurring" && (
                 <RecurringPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} />
               )}
+
+              {result?.kind === "goal_plan" && (
+                <GoalPlanPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} />
+              )}
             </div>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   )
-}
-
-function uniqueDates(items: ScheduleItem[]): string[] {
-  return Array.from(new Set(items.map((it) => it.date)))
 }
 
 // ---------------------------------------------------------------------------
@@ -258,14 +293,12 @@ function QuestionView({
 function ProposalItems({
   heading,
   initialItems,
-  dates,
   confirmLabel,
   appliedLabel,
   onApplied,
 }: {
   heading: string
   initialItems: ScheduleItem[]
-  dates: string[]
   confirmLabel: string
   appliedLabel: (n: number) => string
   onApplied: (message: string) => void
@@ -295,17 +328,22 @@ function ProposalItems({
     })
   }
 
+  // Confirm/dismiss act on this proposal's specific staged rows (by id) so they
+  // never touch unrelated AI Planner proposals, and so user-edited rows (whose
+  // status is "edited") are still applied/discarded. Both routes log through the
+  // ai_schedule_feedback learning loop via accept/reject.
   function confirmAll() {
-    const n = pending.length
+    const targets = pending.map((it) => it.id)
     startTransition(async () => {
-      await acceptAllProposed(dates)
-      onApplied(appliedLabel(n))
+      for (const id of targets) await acceptScheduleItem(id)
+      onApplied(appliedLabel(targets.length))
     })
   }
 
   function dismiss() {
+    const targets = pending.map((it) => it.id)
     startTransition(async () => {
-      await clearProposed(dates)
+      for (const id of targets) await rejectScheduleItem(id)
       onApplied("Dismissed the proposal.")
     })
   }
@@ -592,6 +630,114 @@ function RecurringPreview({
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 disabled:opacity-50"
           >
             <Check className="size-3.5" /> Create task
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Goal plan proposal — a quantity-by-deadline goal distributed into a repeating
+// task. Applied via confirmGoalPlan (creates a long-term goal + recurring task).
+// ---------------------------------------------------------------------------
+
+/** Format YYYY-MM-DD as e.g. "Jul 7". */
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+}
+
+function GoalPlanPreview({
+  proposal,
+  pillars,
+  onApplied,
+}: {
+  proposal: GoalPlanProposal
+  pillars: PillarOption[]
+  onApplied: (message: string) => void
+}) {
+  const [draft, setDraft] = useState<GoalPlanProposal>(proposal)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, startTransition] = useTransition()
+
+  function confirm() {
+    setError(null)
+    startTransition(async () => {
+      const res = await confirmGoalPlan(draft)
+      if (res.ok) onApplied(`Goal “${draft.goalTitle}” set up — ${draft.perSession}${draft.unit ? ` ${draft.unit}` : ""} per session.`)
+      else setError(res.error ?? "Couldn't set up the goal.")
+    })
+  }
+
+  function reject() {
+    startTransition(async () => {
+      await rejectGoalPlan(draft)
+      onApplied("Dismissed the proposal.")
+    })
+  }
+
+  const cadence =
+    draft.frequency === "daily"
+      ? "every day"
+      : draft.daysOfWeek.length
+        ? draft.daysOfWeek.map((d) => WEEKDAY_LABELS[d]).join(", ")
+        : "weekly"
+
+  const unitLabel = draft.unit ? ` ${draft.unit}` : ""
+
+  return (
+    <div className="flex flex-col gap-3 p-2">
+      <div className="flex items-center gap-2">
+        <Target className="size-4 text-primary" />
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">New goal plan</p>
+      </div>
+
+      <input
+        value={draft.goalTitle}
+        onChange={(e) => setDraft((d) => ({ ...d, goalTitle: e.target.value }))}
+        placeholder="Goal name"
+        className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+      />
+
+      {/* The computed distribution — this is the whole point: spread the total
+          across sessions so it finishes by the deadline. */}
+      <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-sm">
+        <p className="font-medium text-foreground">
+          ≈ {draft.perSession}
+          {unitLabel} per session
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {cadence} · until {formatShortDate(draft.deadline)} · {draft.occurrences} session
+          {draft.occurrences === 1 ? "" : "s"} → {draft.targetValue}
+          {unitLabel} total
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Pillar</span>
+        <PillarPicker pillars={pillars} value={draft.pillarId} onChange={(id) => setDraft((d) => ({ ...d, pillarId: id }))} />
+      </div>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <div className="flex items-center gap-2 border-t border-border pt-2">
+        <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reject}
+            className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={confirm}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 disabled:opacity-50"
+          >
+            <Check className="size-3.5" /> Create goal plan
           </button>
         </div>
       </div>

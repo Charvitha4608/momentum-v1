@@ -8,6 +8,7 @@ import { ChevronsLeft, ChevronsRight, LogOut, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
 import { NavIcon } from "@/components/nav-icon"
+import { CommandBarTrigger } from "@/components/command-bar"
 import { navItems, type ActivePath } from "@/lib/nav-items"
 
 const COLLAPSE_KEY = "momentum:sidebar-collapsed"
@@ -58,6 +59,10 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
         </Link>
       </div>
 
+      <div className="px-2 pb-1">
+        <CommandBarTrigger collapsed={collapsed} className="w-full" />
+      </div>
+
       <nav className="flex flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2">
         {navItems.map((item) => {
           const isActive = active === item.href
@@ -68,10 +73,10 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors",
+                "relative flex items-center rounded-lg border border-transparent py-2.5 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-2" : "px-3",
                 isActive
-                  ? "bg-muted/50 text-foreground"
+                  ? "border-brand-line bg-brand-soft text-white before:absolute before:left-0 before:top-1/2 before:h-[18px] before:w-[3px] before:-translate-y-1/2 before:rounded-r-[3px] before:bg-brand"
                   : "text-muted-foreground/90 hover:bg-muted/20 hover:text-muted-foreground"
               )}
             >
