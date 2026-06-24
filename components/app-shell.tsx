@@ -5,6 +5,7 @@ import { getUnreadCount } from "@/app/actions/notifications"
 import { getPillars } from "@/app/actions/pillars"
 import { BottomTabBar } from "@/components/bottom-tab-bar"
 import { CommandBar, CommandBarTrigger } from "@/components/command-bar"
+import { NotificationBell } from "@/components/notification-bell"
 import { PageTransition } from "@/components/page-transition"
 import { SignOutButton } from "@/components/sign-out-button"
 import { Sidebar } from "@/components/sidebar"
@@ -25,12 +26,12 @@ export async function AppShell({
   const [unreadCount, pillars] = await Promise.all([getUnreadCount(), getPillars()])
 
   return (
-    <div className="bg-app-canvas flex min-h-dvh">
+    <div className="bg-app-canvas flex min-h-dvh overflow-x-hidden">
       <TimezoneSync />
       <CommandBar pillars={pillars} />
       <Sidebar active={active} unreadCount={unreadCount} />
 
-      <div className="flex min-h-dvh flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         {/* Mobile-only top bar: section nav lives in the sidebar (desktop) and bottom tab bar (mobile) */}
         <header className="border-b border-border md:hidden">
           <div className="flex items-center justify-between gap-2 px-3 py-3 sm:px-6">
@@ -42,6 +43,11 @@ export async function AppShell({
             </Link>
             <div className="flex items-center gap-2">
               <CommandBarTrigger collapsed />
+              <NotificationBell
+                unreadCount={unreadCount}
+                active={active === "/notifications"}
+                variant="bar"
+              />
               <SignOutButton />
             </div>
           </div>
@@ -57,7 +63,7 @@ export async function AppShell({
           <PageTransition>{children}</PageTransition>
         </main>
 
-        <BottomTabBar active={active} unreadCount={unreadCount} />
+        <BottomTabBar active={active} />
       </div>
     </div>
   )

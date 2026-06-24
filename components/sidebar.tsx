@@ -8,6 +8,7 @@ import { ChevronsLeft, ChevronsRight, LogOut, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
 import { NavIcon } from "@/components/nav-icon"
+import { NotificationBell } from "@/components/notification-bell"
 import { CommandBarTrigger } from "@/components/command-bar"
 import { navItems, type ActivePath } from "@/lib/nav-items"
 
@@ -83,11 +84,6 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
             >
               <span className="relative flex shrink-0 items-center justify-center">
                 <NavIcon icon={item.icon} className="size-[18px]" />
-                {item.href === "/notifications" && unreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-semibold text-destructive-foreground">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
               </span>
               <span className={labelClass(collapsed)}>{item.label}</span>
             </Link>
@@ -96,6 +92,12 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
       </nav>
 
       <div className="flex flex-col gap-1.5 border-t border-line px-2 py-2">
+        <NotificationBell
+          unreadCount={unreadCount}
+          active={active === "/notifications"}
+          variant="sidebar"
+          collapsed={collapsed}
+        />
         <button
           type="button"
           onClick={handleSignOut}
