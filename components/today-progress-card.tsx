@@ -29,7 +29,7 @@ export function TodayProgressCard({
 
   return (
     <Card className="elevate-hover">
-      <CardContent className="flex items-center gap-5">
+      <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-3">
         {/* Circular progress ring */}
         <div className="relative size-16 shrink-0">
           <svg width="64" height="64" className="-rotate-90">
@@ -61,7 +61,7 @@ export function TodayProgressCard({
         {/* Status + thin progress bar */}
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-muted-foreground">Today&apos;s progress</div>
-          <div className="mt-0.5 truncate text-xl font-bold tracking-tight">{status}</div>
+          <div className="mt-0.5 text-xl font-bold tracking-tight text-balance">{status}</div>
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
             <div
               className="h-full rounded-full bg-brand-gradient transition-[width] duration-700 ease-out"

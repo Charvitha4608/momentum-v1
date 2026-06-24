@@ -40,8 +40,8 @@ export default async function HomePage() {
 
   return (
     <AppShell active="/" subtitle={`Hey ${session.user.name}, crush today's targets.`}>
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="flex flex-col gap-4 lg:col-span-8">
+      <div className="grid min-w-0 gap-6 overflow-x-hidden lg:grid-cols-12">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-8">
           <div className="grid gap-4 sm:grid-cols-2">
             <StatCard label="Day streak" value={stats.streak} variant="streak" />
             <StatCard label="Total points" value={stats.points} variant="points" />
@@ -54,16 +54,16 @@ export default async function HomePage() {
           <TargetList initialTargets={todayTargets} date={today} pillars={pillars} longTermGoals={longTermGoals} />
         </div>
 
-        <div className="flex flex-col gap-6 lg:col-span-4">
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-4">
           {/* AI Planner: accent-gradient glow card */}
           <div className="ai-glow-card rounded-card p-4">
             <div className="relative z-[1] flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex size-9 items-center justify-center rounded-lg bg-brand-gradient text-white shadow-[0_4px_14px_-3px_rgba(109,93,255,0.6)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-gradient text-white shadow-[0_4px_14px_-3px_rgba(109,93,255,0.6)]">
                     <Sparkles className="size-4" />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-card-foreground">AI Planner</p>
                     <p className="text-xs text-muted-foreground">
                       {availability.hours}h free today

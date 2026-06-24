@@ -290,7 +290,7 @@ export function TargetList({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97 }}
         transition={{ duration: 0.18 }}
-        className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-secondary/50"
+        className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-secondary/50"
       >
         <Checkbox
           aria-label={item.completed ? `Mark "${item.title}" incomplete` : `Mark "${item.title}" complete`}
@@ -308,14 +308,14 @@ export function TargetList({
               if (e.key === "Enter") commitEdit(item.id)
               if (e.key === "Escape") setEditingId(null)
             }}
-            className="flex-1 bg-transparent text-base outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base outline-none"
           />
         ) : (
           // COLOR: completed targets fade to muted-foreground + strikethrough; active targets use foreground
           <button
             type="button"
             onClick={() => startEdit(item)}
-            className={`flex-1 text-left text-base ${
+            className={`min-w-0 flex-1 break-words text-left text-base ${
               item.completed ? "text-muted-foreground line-through" : "text-foreground"
             }`}
           >
@@ -449,7 +449,7 @@ export function TargetList({
         </ul>
 
         {/* Add new target row */}
-        <form onSubmit={handleAdd} className="mt-1 flex items-center gap-3 px-2 py-2">
+        <form onSubmit={handleAdd} className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 px-2 py-2">
           {/* COLOR: primary marks the "add" affordance */}
           <Plus className="h-4 w-4 shrink-0 text-primary" aria-hidden />
           <input
@@ -458,7 +458,7 @@ export function TargetList({
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Add today's target…"
             aria-label="Add a new target"
-            className="flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground/60 outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground/60 outline-none"
           />
           <PillarPicker
             pillars={pillarOptions}
