@@ -84,9 +84,9 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
                   onClick={() => openProfile(row.userId)}
                   disabled={loadingId === row.userId}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/60",
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-surface-3",
                     // COLOR: the current user's row gets a primary tint + ring; other rows use a plain secondary background
-                    row.isMe ? "bg-primary/10 ring-1 ring-primary/40" : "bg-secondary/40"
+                    row.isMe ? "bg-primary/10 ring-1 ring-primary/40" : "bg-surface-2"
                   )}
                 >
                   <span
@@ -121,7 +121,7 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
           {profile && (
             <div>
               <div className="mb-4 flex items-center gap-3">
-                <span className="flex size-12 items-center justify-center rounded-full bg-secondary text-2xl">
+                <span className="flex size-12 items-center justify-center rounded-full bg-surface-2 text-2xl">
                   {profile.emoji}
                 </span>
                 <div>
@@ -132,26 +132,26 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
 
               {/* COLOR: points uses primary, streak uses destructive (flame) — matches StatCard/ProfileForm */}
               <div className="mb-4 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-secondary/40 px-2 py-3">
+                <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums text-primary">{profile.points}</div>
                   <div className="text-xs text-muted-foreground">Points</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 px-2 py-3">
+                <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums text-destructive">{profile.streak}</div>
                   <div className="text-xs text-muted-foreground">Streak</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 px-2 py-3">
+                <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums">{profile.dailyScore.toFixed(1)}</div>
                   <div className="text-xs text-muted-foreground">Daily score</div>
                 </div>
               </div>
 
               <div className="mb-4 grid grid-cols-2 gap-3 text-center">
-                <div className="rounded-lg bg-secondary/40 px-2 py-3">
+                <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums text-primary">{profile.weeklyPoints}</div>
                   <div className="text-xs text-muted-foreground">Points this week</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 px-2 py-3">
+                <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums text-destructive">{profile.longestStreak}</div>
                   <div className="text-xs text-muted-foreground">Longest streak</div>
                 </div>
@@ -164,7 +164,7 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
                     {profile.topPillars.map((p) => (
                       <span
                         key={p.pillarId}
-                        className="flex items-center gap-1.5 rounded-full bg-secondary/40 px-2.5 py-1 text-xs"
+                        className="flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs"
                       >
                         <span aria-hidden>{p.pillarIcon}</span>
                         <span className="font-medium">{p.pillarName}</span>
@@ -183,7 +183,7 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
                       <span
                         key={b.key}
                         title={b.description}
-                        className="flex items-center gap-1.5 rounded-full bg-secondary/40 px-2.5 py-1 text-xs"
+                        className="flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs"
                       >
                         <span aria-hidden>{b.icon}</span>
                         <span className="font-medium">{b.label}</span>

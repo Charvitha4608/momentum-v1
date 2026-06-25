@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Check, ChevronLeft, ChevronRight, Clock, X } from "lucide-react"
 
@@ -51,6 +51,21 @@ export function HistoryCalendar({
   const [selected, setSelected] = useState<{ date: string } | null>(null)
   const [dayTargets, setDayTargets] = useState<DateTarget[] | null>(null)
 
+  // On desktop the day-detail popup floats inside the calendar card (portaled
+  // into cardRef + absolute-positioned). On mobile it stays the standard
+  // viewport-centered modal (default body portal), so we gate on a media query
+  // rather than CSS alone — a transform ancestor (PageTransition) would
+  // otherwise trap the mobile `fixed` popup inside the card.
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)")
+    const update = () => setIsDesktop(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
+
   function openDay(date: string) {
     setSelected({ date })
     setDayTargets(null)
@@ -88,12 +103,12 @@ export function HistoryCalendar({
   }
 
   return (
-    <Card>
+    <Card ref={cardRef} className="relative">
       <CardContent>
         <div className="mb-4 flex items-center justify-between">
           <Link
             href={`/calendar?year=${prevYear}&month=${prevMonth}`}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-3 hover:text-foreground"
             aria-label="Previous month"
           >
             <ChevronLeft className="size-4" />
@@ -101,7 +116,7 @@ export function HistoryCalendar({
           <h2 className="text-lg font-semibold">{monthLabel}</h2>
           <Link
             href={`/calendar?year=${nextYear}&month=${nextMonth}`}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-3 hover:text-foreground"
             aria-label="Next month"
           >
             <ChevronRight className="size-4" />
@@ -160,7 +175,7 @@ export function HistoryCalendar({
       </CardContent>
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent>
+        <DialogContent container={isDesktop ? cardRef : undefined} contained={isDesktop}>
           {selected && (
             <div>
               <DialogTitle>
@@ -187,7 +202,7 @@ export function HistoryCalendar({
                       return (
                         <li
                           key={t.id}
-                          className="flex items-center gap-2.5 rounded-lg bg-secondary/40 px-3 py-2.5"
+                          className="flex items-center gap-2.5 rounded-lg bg-surface-2 px-3 py-2.5"
                         >
                           {isLate ? (
                             // COLOR: completed-late marker uses amber to signal "done, but not on this day"

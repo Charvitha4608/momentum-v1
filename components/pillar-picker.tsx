@@ -66,7 +66,7 @@ export function PillarPicker({
       }}
     >
       <PopoverTrigger
-        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm text-foreground transition-colors hover:bg-secondary/50"
+        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-foreground transition-colors hover:bg-surface-3"
         aria-label="Choose pillar"
       >
         {selected ? (
@@ -90,8 +90,8 @@ export function PillarPicker({
                   setOpen(false)
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-secondary/50",
-                  p.id === value && "bg-secondary"
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-surface-3",
+                  p.id === value && "bg-surface-3"
                 )}
               >
                 <span aria-hidden>{p.icon}</span>
@@ -103,13 +103,13 @@ export function PillarPicker({
         </ul>
 
         {creating ? (
-          <form onSubmit={handleCreate} className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+          <form onSubmit={handleCreate} className="mt-2 flex flex-col gap-2 border-t border-line pt-2">
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Pillar name"
-              className="rounded-lg border border-border bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+              className="rounded-lg border border-line bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
             />
             <div className="flex flex-wrap gap-1">
               {PILLAR_ICONS.map((opt) => (
@@ -119,8 +119,8 @@ export function PillarPicker({
                   onClick={() => setIcon(opt)}
                   aria-label={`Icon ${opt}`}
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-lg text-base transition-colors hover:bg-secondary/50",
-                    icon === opt && "bg-secondary"
+                    "flex size-7 items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-3",
+                    icon === opt && "bg-surface-3"
                   )}
                 >
                   {opt}
@@ -135,7 +135,7 @@ export function PillarPicker({
                   onClick={() => setColor(opt)}
                   aria-label={`Color ${opt}`}
                   className={cn(
-                    "size-5 rounded-full ring-2 ring-offset-2 ring-offset-card transition-shadow",
+                    "size-5 rounded-full ring-2 ring-offset-2 ring-offset-surface-overlay transition-shadow",
                     color === opt ? "ring-foreground" : "ring-transparent"
                   )}
                   style={{ backgroundColor: opt }}
@@ -163,7 +163,7 @@ export function PillarPicker({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="mt-2 flex w-full items-center gap-2 rounded-lg border-t border-border px-2 pt-2 text-sm text-primary transition-colors hover:text-primary/80"
+            className="mt-2 flex w-full items-center gap-2 rounded-lg border-t border-line px-2 pt-2 text-sm text-primary transition-colors hover:text-primary/80"
           >
             <Plus className="size-3.5" aria-hidden />
             New pillar

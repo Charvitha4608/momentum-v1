@@ -246,7 +246,7 @@ export function TargetList({
       <span className="flex shrink-0 items-center gap-1">
         {showQty && (
           <span
-            className="rounded-full border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+            className="rounded-full border border-line px-1.5 py-0.5 text-xs text-muted-foreground"
             title={`Quantity: ${item.quantity}`}
           >
             ×{item.quantity}
@@ -254,7 +254,7 @@ export function TargetList({
         )}
         {showEst && (
           <span
-            className="rounded-full border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+            className="rounded-full border border-line px-1.5 py-0.5 text-xs text-muted-foreground"
             title={`Estimated ${item.estimatedMinutes} minutes`}
           >
             ~{item.estimatedMinutes}m
@@ -290,7 +290,7 @@ export function TargetList({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97 }}
         transition={{ duration: 0.18 }}
-        className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-secondary/50"
+        className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-surface-3"
       >
         <Checkbox
           aria-label={item.completed ? `Mark "${item.title}" incomplete` : `Mark "${item.title}" complete`}
@@ -345,7 +345,7 @@ export function TargetList({
               }}
               placeholder="actual min"
               aria-label="Actual minutes spent"
-              className="w-20 rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs outline-none focus:border-primary"
+              className="w-20 rounded-md border border-line bg-transparent px-1.5 py-0.5 text-xs outline-none focus:border-primary"
             />
             <button
               type="button"
@@ -474,7 +474,7 @@ export function TargetList({
               className={`flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                 newDuration !== null || newTimeOfDay !== null || newQuantity !== 1 || newEstimatedMinutes !== null || newGoalId !== null
                   ? "border-primary/40 bg-primary/15 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground"
+                  : "border-line text-muted-foreground hover:text-foreground"
               }`}
             >
               <SlidersHorizontal className="h-4 w-4" />
@@ -488,7 +488,7 @@ export function TargetList({
                   <select
                     value={newGoalId ?? ""}
                     onChange={(e) => setNewGoalId(e.target.value === "" ? null : Number(e.target.value))}
-                    className="mb-3 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+                    className="mb-3 w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
                   >
                     <option value="">None</option>
                     {goalsForPillar.map((g) => (
@@ -509,7 +509,7 @@ export function TargetList({
                     inputMode="numeric"
                     value={newQuantity}
                     onChange={(e) => setNewQuantity(Math.max(1, Math.round(Number(e.target.value) || 1)))}
-                    className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
                 <div className="flex-1">
@@ -521,7 +521,7 @@ export function TargetList({
                     value={newEstimatedMinutes ?? ""}
                     onChange={(e) => setNewEstimatedMinutes(e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value) || 0)))}
                     placeholder="—"
-                    className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
               </div>
@@ -536,7 +536,7 @@ export function TargetList({
                     className={`rounded-md px-2 py-1 text-xs transition-colors ${
                       newDuration === m
                         ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                        : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
                     }`}
                   >
                     {m < 60 ? `${m}m` : `${m / 60}h`}
@@ -553,7 +553,7 @@ export function TargetList({
                     className={`rounded-md px-2 py-1 text-xs transition-colors ${
                       newTimeOfDay === c.value
                         ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                        : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
                     }`}
                   >
                     {c.label}
@@ -578,7 +578,7 @@ export function TargetList({
 
         {completedItems.length > 0 && (
           <>
-            <h3 className="mt-5 mb-1 border-t border-border px-2 pt-4 text-sm font-medium text-muted-foreground">
+            <h3 className="mt-5 mb-1 border-t border-line px-2 pt-4 text-sm font-medium text-muted-foreground">
               Completed Today
             </h3>
             <ul className="flex flex-col gap-1">

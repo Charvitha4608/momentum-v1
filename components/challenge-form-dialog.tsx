@@ -71,7 +71,7 @@ export function ChallengeFormDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Challenge title (e.g. Most points this week)"
-            className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+            className="rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
           />
 
           <div>
@@ -81,8 +81,8 @@ export function ChallengeFormDialog({
                 type="button"
                 onClick={() => setScoped(false)}
                 className={cn(
-                  "rounded-lg border border-border px-3 py-1.5 text-sm transition-colors",
-                  !scoped ? "border-primary bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+                  "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
+                  !scoped ? "border-primary bg-surface-3 text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 All pillars
@@ -91,8 +91,8 @@ export function ChallengeFormDialog({
                 type="button"
                 onClick={() => setScoped(true)}
                 className={cn(
-                  "rounded-lg border border-border px-3 py-1.5 text-sm transition-colors",
-                  scoped ? "border-primary bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+                  "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
+                  scoped ? "border-primary bg-surface-3 text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 One pillar
@@ -110,8 +110,8 @@ export function ChallengeFormDialog({
                   type="button"
                   onClick={() => setMetric(opt.value)}
                   className={cn(
-                    "rounded-lg border border-border px-3 py-1.5 text-sm transition-colors",
-                    metric === opt.value ? "border-primary bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+                    "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
+                    metric === opt.value ? "border-primary bg-surface-3 text-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {opt.label}
@@ -128,7 +128,7 @@ export function ChallengeFormDialog({
               max={90}
               value={durationDays}
               onChange={(e) => setDurationDays(Math.min(90, Math.max(1, Number(e.target.value) || 1)))}
-              className="w-20 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
+              className="w-20 rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
             />
           </div>
 

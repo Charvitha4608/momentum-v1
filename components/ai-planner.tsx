@@ -152,14 +152,14 @@ export function AiPlanner({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1 rounded-lg bg-secondary/50 p-1">
+              <div className="inline-flex items-center gap-1 rounded-lg bg-surface-2 p-1">
                 {(["day", "week"] as Scope[]).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setScope(s)}
                     className={`rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors ${
-                      scope === s ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      scope === s ? "bg-surface-2 text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {s}
@@ -176,7 +176,7 @@ export function AiPlanner({
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
 
           {proposedCount > 0 && (
-            <div className="flex items-center gap-2 border-t border-border pt-3">
+            <div className="flex items-center gap-2 border-t border-line pt-3">
               <span className="text-sm text-muted-foreground">{proposedCount} proposed</span>
               <div className="ml-auto flex gap-2">
                 <Button variant="ghost" size="sm" onClick={clearAll} disabled={busy}>
@@ -241,7 +241,7 @@ export function AiPlanner({
               }}
               className={`flex flex-col gap-2 rounded-xl p-2 ring-1 transition-colors ${
                 dragId != null ? "ring-primary/40" : "ring-foreground/10"
-              } ${isToday ? "bg-secondary/30" : "bg-card/40"}`}
+              } ${isToday ? "bg-surface-2" : "bg-surface-1"}`}
             >
               <div className="flex items-baseline justify-between px-1">
                 <span className={`text-sm font-medium ${isToday ? "text-primary" : ""}`}>{dow}</span>
@@ -312,8 +312,8 @@ function ScheduleCard({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.16 }}
-      className={`group cursor-grab rounded-lg border bg-card p-2 text-sm active:cursor-grabbing ${
-        accepted ? "border-border" : "border-primary/25"
+      className={`group cursor-grab rounded-lg border bg-surface-1 p-2 text-sm active:cursor-grabbing ${
+        accepted ? "border-line" : "border-primary/25"
       }`}
     >
       <div className="flex items-start gap-1.5">
@@ -365,7 +365,7 @@ function ScheduleCard({
       </div>
 
       {!accepted && (
-        <div className="mt-2 flex items-center gap-1 border-t border-border pt-2 opacity-80 transition-opacity group-hover:opacity-100">
+        <div className="mt-2 flex items-center gap-1 border-t border-line pt-2 opacity-80 transition-opacity group-hover:opacity-100">
           <button
             type="button"
             aria-label="Accept"
@@ -401,7 +401,7 @@ function EditPopover({
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary/50 hover:text-foreground">
+      <PopoverTrigger className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-surface-3 hover:text-foreground">
         <Pencil className="size-3" /> Edit
       </PopoverTrigger>
       <PopoverContent align="start" className="w-60">
@@ -420,7 +420,7 @@ function EditPopover({
                       setOpen(false)
                     }}
                     className={`rounded-md border px-1 py-1 text-xs transition-colors ${
-                      d === item.date ? "border-primary/40 bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                      d === item.date ? "border-primary/40 bg-primary/15 text-primary" : "border-line text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {dow}
@@ -441,7 +441,7 @@ function EditPopover({
                 setOpen(false)
               }}
               className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                item.timeOfDay === tod ? "border-primary/40 bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                item.timeOfDay === tod ? "border-primary/40 bg-primary/15 text-primary" : "border-line text-muted-foreground hover:text-foreground"
               }`}
             >
               {TIME_OF_DAY_LABELS[tod]}

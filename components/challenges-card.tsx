@@ -64,7 +64,7 @@ export function ChallengesCard({ initialChallenges, pillars }: { initialChalleng
         ) : (
           <ul className="flex flex-col gap-2">
             {challenges.map((c) => (
-              <li key={c.id} className="rounded-lg bg-secondary/40 px-3 py-2.5">
+              <li key={c.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     {c.pillarIcon && <span aria-hidden>{c.pillarIcon}</span>}
@@ -88,7 +88,7 @@ export function ChallengesCard({ initialChallenges, pillars }: { initialChalleng
                       <button
                         type="button"
                         onClick={() => handleJoin(c.id)}
-                        className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
+                        className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-3"
                       >
                         Join
                       </button>
@@ -97,7 +97,7 @@ export function ChallengesCard({ initialChallenges, pillars }: { initialChalleng
                       type="button"
                       onClick={() => openDetail(c.id)}
                       disabled={loadingDetailId === c.id}
-                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:opacity-50"
+                      className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-3 disabled:opacity-50"
                     >
                       View
                     </button>
@@ -133,7 +133,7 @@ export function ChallengesCard({ initialChallenges, pillars }: { initialChalleng
                     key={p.userId}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2",
-                      p.isMe ? "bg-primary/10 ring-1 ring-primary/40" : "bg-secondary/40"
+                      p.isMe ? "bg-primary/10 ring-1 ring-primary/40" : "bg-surface-2"
                     )}
                   >
                     <span

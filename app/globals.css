@@ -58,6 +58,8 @@
   --color-green: var(--green);
   --color-green-soft: var(--green-soft);
   --color-amber: var(--amber);
+  --color-surface-overlay: var(--surface-overlay); /* floating panel — bg-surface-overlay */
+  --color-scrim: var(--scrim); /* modal backdrop — bg-scrim */
   --radius-card: var(--r-lg); /* rounded-card */
   --radius-control: var(--r-md); /* rounded-control */
   --radius-chip: var(--r-sm); /* rounded-chip */
@@ -124,6 +126,12 @@
   --green: #46d39a;
   --green-soft: rgba(70, 211, 154, 0.13);
   --amber: #f5b84b;
+
+  /* Floating surfaces (dialogs/popovers) and their backdrop — matches the
+     redesign command palette (design/momentum-redesign.html). surface-1 is too
+     translucent to read as a panel over the scrim, so these are near-opaque. */
+  --surface-overlay: rgba(22, 22, 30, 0.92);
+  --scrim: rgba(4, 4, 8, 0.66);
 
   --r-lg: 18px;
   --r-md: 13px;

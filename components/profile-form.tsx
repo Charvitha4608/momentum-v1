@@ -47,7 +47,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       <Card className="w-full">
         <CardContent>
           <div className="mb-5 flex items-center gap-4">
-            <span className="flex size-14 items-center justify-center rounded-2xl bg-secondary text-3xl">{emoji}</span>
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-surface-2 text-3xl">{emoji}</span>
             <div>
               <div className="text-lg font-semibold">{name}</div>
               <div className="text-sm text-muted-foreground">{profile.email}</div>
@@ -57,28 +57,28 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           {/* COLOR: stat icons use primary by default; only the "current streak" flame uses destructive
               to read as an active/urgent streak (matches StatCard, Leaderboard friend dialog) */}
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-secondary/40 px-3 py-3 text-center">
+            <div className="rounded-lg bg-surface-2 px-3 py-3 text-center">
               <Trophy className="mx-auto mb-1 size-4 text-primary" />
               <div className="text-lg font-semibold tabular-nums">
                 <CountUp value={profile.points} />
               </div>
               <div className="text-xs text-muted-foreground">Total points</div>
             </div>
-            <div className="rounded-lg bg-secondary/40 px-3 py-3 text-center">
+            <div className="rounded-lg bg-surface-2 px-3 py-3 text-center">
               <Flame className="mx-auto mb-1 size-4 text-destructive" />
               <div className="text-lg font-semibold tabular-nums">
                 <CountUp value={profile.streak} />
               </div>
               <div className="text-xs text-muted-foreground">Current streak</div>
             </div>
-            <div className="rounded-lg bg-secondary/40 px-3 py-3 text-center">
+            <div className="rounded-lg bg-surface-2 px-3 py-3 text-center">
               <Award className="mx-auto mb-1 size-4 text-primary" />
               <div className="text-lg font-semibold tabular-nums">
                 <CountUp value={profile.bestStreak} />
               </div>
               <div className="text-xs text-muted-foreground">Best streak</div>
             </div>
-            <div className="rounded-lg bg-secondary/40 px-3 py-3 text-center">
+            <div className="rounded-lg bg-surface-2 px-3 py-3 text-center">
               <CheckCircle2 className="mx-auto mb-1 size-4 text-primary" />
               <div className="text-lg font-semibold tabular-nums">
                 <CountUp value={profile.totalCompleted} />
@@ -96,7 +96,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
                     key={badge.key}
                     title={badge.description}
                     className={cn(
-                      "rounded-lg bg-secondary/40 px-3 py-3 text-center transition-opacity",
+                      "rounded-lg bg-surface-2 px-3 py-3 text-center transition-opacity",
                       !badge.unlocked && "opacity-40 grayscale"
                     )}
                   >
@@ -133,7 +133,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
                 <button
                   type="button"
                   onClick={() => setEditingName(true)}
-                  className="w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-secondary/40"
+                  className="w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-surface-3"
                 >
                   {name}
                 </button>
@@ -150,7 +150,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             <div>
               <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Emoji</p>
               <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-                <PopoverTrigger className="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-secondary/40">
+                <PopoverTrigger className="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-surface-3">
                   <span className="text-xl">{emoji}</span>
                   <span className="text-xs text-muted-foreground">Click to change</span>
                 </PopoverTrigger>
@@ -163,8 +163,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
                         aria-pressed={emoji === option}
                         onClick={() => { setEmoji(option); setEmojiOpen(false); setFeedback(null) }}
                         className={cn(
-                          "flex aspect-square items-center justify-center rounded-lg text-base transition-colors hover:bg-secondary/60",
-                          emoji === option ? "bg-primary/15 ring-1 ring-primary" : "bg-secondary/40"
+                          "flex aspect-square items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-3",
+                          emoji === option ? "bg-primary/15 ring-1 ring-primary" : "bg-surface-2"
                         )}
                       >
                         {option}

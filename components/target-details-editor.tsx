@@ -102,7 +102,7 @@ export function TargetDetailsEditor({
             <select
               value={draft.longTermGoalId ?? ""}
               onChange={(e) => setDraft((d) => ({ ...d, longTermGoalId: e.target.value === "" ? null : Number(e.target.value) }))}
-              className="mb-3 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+              className="mb-3 w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
             >
               <option value="">None</option>
               {goalsForPillar.map((g) => (
@@ -123,7 +123,7 @@ export function TargetDetailsEditor({
               inputMode="numeric"
               value={draft.quantity}
               onChange={(e) => setDraft((d) => ({ ...d, quantity: Math.max(1, Math.round(Number(e.target.value) || 1)) }))}
-              className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+              className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
             />
           </div>
           <div className="flex-1">
@@ -140,7 +140,7 @@ export function TargetDetailsEditor({
                 }))
               }
               placeholder="—"
-              className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+              className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
             />
           </div>
         </div>
@@ -155,7 +155,7 @@ export function TargetDetailsEditor({
               className={`rounded-md px-2 py-1 text-xs transition-colors ${
                 draft.durationMinutes === m
                   ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                  : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
               }`}
             >
               {m < 60 ? `${m}m` : `${m / 60}h`}
@@ -173,7 +173,7 @@ export function TargetDetailsEditor({
               className={`rounded-md px-2 py-1 text-xs transition-colors ${
                 draft.preferredTimeOfDay === c.value
                   ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                  : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
               }`}
             >
               {c.label}

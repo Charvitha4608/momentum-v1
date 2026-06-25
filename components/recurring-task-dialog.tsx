@@ -85,7 +85,7 @@ export function RecurringTaskDialog({
     >
       <DialogTrigger
         aria-label="New recurring task"
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-primary"
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-line text-muted-foreground transition-colors hover:text-primary"
       >
         <Repeat className="size-4" aria-hidden />
       </DialogTrigger>
@@ -98,7 +98,7 @@ export function RecurringTaskDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
-              className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+              className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
             />
             <PillarPicker pillars={pillars} value={pillarId} onChange={setPillarId} onPillarCreated={onPillarCreated} />
           </div>
@@ -112,9 +112,9 @@ export function RecurringTaskDialog({
                   type="button"
                   onClick={() => setFrequency(opt.value)}
                   className={cn(
-                    "rounded-lg border border-border px-3 py-1.5 text-sm transition-colors",
+                    "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
                     frequency === opt.value
-                      ? "border-primary bg-secondary text-foreground"
+                      ? "border-primary bg-surface-3 text-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -134,9 +134,9 @@ export function RecurringTaskDialog({
                     type="button"
                     onClick={() => toggleDay(idx)}
                     className={cn(
-                      "rounded-lg border border-border px-2.5 py-1.5 text-xs transition-colors",
+                      "rounded-lg border border-line px-2.5 py-1.5 text-xs transition-colors",
                       daysOfWeek.includes(idx)
-                        ? "border-primary bg-secondary text-foreground"
+                        ? "border-primary bg-surface-3 text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -156,7 +156,7 @@ export function RecurringTaskDialog({
                   min={2}
                   value={intervalDays}
                   onChange={(e) => setIntervalDays(Math.max(2, Number(e.target.value) || 2))}
-                  className="w-20 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
+                  className="w-20 rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
                 />
                 <span className="text-sm text-muted-foreground">days</span>
               </div>

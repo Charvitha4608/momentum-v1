@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
+import Link from "next/link"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { getMonthStats, getMonthPillarFullStats, getWeekTargets, getCurrentStreak } from "@/app/actions/history"
 import { HistoryCalendar } from "@/components/history-calendar"
@@ -57,11 +59,48 @@ export default async function CalendarPage({
 
   if (view === "pillars") {
     const pillarStats = await getMonthPillarFullStats(year, month)
+
+    let prevYear = year
+    let prevMonth = month - 1
+    if (prevMonth === 0) {
+      prevMonth = 12
+      prevYear -= 1
+    }
+    let nextYear = year
+    let nextMonth = month + 1
+    if (nextMonth === 13) {
+      nextMonth = 1
+      nextYear += 1
+    }
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    })
+
     return (
       <AppShell active="/calendar" title="Calendar">
-        <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
-          <CalendarViewSwitcher view={view} />
-          <CalendarPillarsView year={year} month={month} pillars={pillarStats} today={today} />
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+          <div className="relative flex flex-col gap-3 md:flex-row md:items-center md:justify-center">
+            <CalendarViewSwitcher view={view} />
+            <div className="static flex items-center justify-center gap-1 md:absolute md:right-0">
+              <Link
+                href={`/calendar?year=${prevYear}&month=${prevMonth}&view=pillars`}
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="size-4" />
+              </Link>
+              <span className="min-w-[8rem] text-center text-sm font-semibold">{monthLabel}</span>
+              <Link
+                href={`/calendar?year=${nextYear}&month=${nextMonth}&view=pillars`}
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                aria-label="Next month"
+              >
+                <ChevronRight className="size-4" />
+              </Link>
+            </div>
+          </div>
+          <CalendarPillarsView pillars={pillarStats} />
         </div>
       </AppShell>
     )
@@ -70,10 +109,12 @@ export default async function CalendarPage({
   const days = await getMonthStats(year, month)
   return (
     <AppShell active="/calendar" title="Calendar">
-      <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-sm flex-col gap-6 md:max-w-4xl">
         <CalendarViewSwitcher view={view} />
-        <HistoryCalendar year={year} month={month} days={days} today={today} />
-        <WeeklyScoreCard year={year} month={month} days={days} today={today} />
+        <div className="grid items-start gap-6 md:grid-cols-2">
+          <HistoryCalendar year={year} month={month} days={days} today={today} />
+          <WeeklyScoreCard year={year} month={month} days={days} today={today} />
+        </div>
       </div>
     </AppShell>
   )

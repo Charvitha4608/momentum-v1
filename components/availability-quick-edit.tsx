@@ -43,7 +43,7 @@ export function AvailabilityQuickEdit({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
+      <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
         <Clock className="size-3.5 text-primary" aria-hidden />
         <span className="text-foreground">{current}h</span>
         <span>free today{overridden ? " ·" : ""}</span>
@@ -60,7 +60,7 @@ export function AvailabilityQuickEdit({
               className={`rounded-md border px-2 py-1.5 text-sm transition-colors ${
                 current === h && overridden
                   ? "border-primary/40 bg-primary/15 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground"
+                  : "border-line text-muted-foreground hover:text-foreground"
               }`}
             >
               {h}h
