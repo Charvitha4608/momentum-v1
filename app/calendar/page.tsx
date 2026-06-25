@@ -35,7 +35,9 @@ export default async function CalendarPage({
     return (
       <AppShell active="/calendar" title="AI Planner" subtitle="Let Claude shape your week around your time">
         <div className="flex flex-col gap-4">
-          <CalendarViewSwitcher view={view} />
+          <div className="flex justify-center">
+            <CalendarViewSwitcher view={view} />
+          </div>
           <AiPlanner initialDays={weekDays} initialItems={items} today={today} />
         </div>
       </AppShell>
@@ -50,7 +52,9 @@ export default async function CalendarPage({
     return (
       <AppShell active="/calendar" title="Calendar">
         <div className="flex flex-col gap-4">
-          <CalendarViewSwitcher view={view} />
+          <div className="flex justify-center">
+            <CalendarViewSwitcher view={view} />
+          </div>
           <CalendarWeekView days={weekDays} weekDate={params.week ?? today} today={today} streak={streak} />
         </div>
       </AppShell>
@@ -110,7 +114,9 @@ export default async function CalendarPage({
   return (
     <AppShell active="/calendar" title="Calendar">
       <div className="mx-auto flex w-full max-w-sm flex-col gap-6 md:max-w-4xl">
-        <CalendarViewSwitcher view={view} />
+        <div className="flex justify-center">
+          <CalendarViewSwitcher view={view} />
+        </div>
         <div className="grid items-start gap-6 md:grid-cols-2">
           <HistoryCalendar year={year} month={month} days={days} today={today} />
           <WeeklyScoreCard year={year} month={month} days={days} today={today} />

@@ -19,9 +19,9 @@ export function WeeklyScoreCard({
   const weeks = computeWeeklyScores(year, month, days)
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "short" })
 
-  // Bars are scaled relative to the best-scoring week so the fills stay
-  // comparable regardless of the month's absolute points-per-task range.
-  const maxScore = Math.max(0, ...weeks.map((w) => (w.totalTasks > 0 ? w.score : 0)))
+  // Bars are scaled against the fixed 0-10 scale (each task is worth 10 points
+  // by default), so every week's fill reflects its absolute score: 5.00 = half.
+  const MAX_SCORE = 10
 
   // Highlight the week containing today, but only when viewing the current month.
   const [todayYear, todayMonth, todayDay] = today.split("-").map(Number)
@@ -40,7 +40,7 @@ export function WeeklyScoreCard({
         <ul className="flex flex-col gap-2">
           {weeks.map((week) => {
             const isCurrent = week.weekIndex === currentWeekIndex
-            const width = maxScore > 0 ? Math.min(100, (week.score / maxScore) * 100) : 0
+            const width = week.totalTasks > 0 ? Math.min(100, (week.score / MAX_SCORE) * 100) : 0
             return (
               <li
                 key={week.weekIndex}
