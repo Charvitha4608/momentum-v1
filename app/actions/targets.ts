@@ -34,8 +34,11 @@ function scoreSnapshot(total: number, completed: number, pointsEarned: number) {
 
 /**
  * Recompute and upsert the `daily_stats` snapshot for one user+date from the
- * current `targets` rows for that date. Used both to freeze past days before
- * carry-over and to keep today's snapshot current as targets are mutated.
+ * `targets` rows whose `originalDate` is that date. Keying on `originalDate`
+ * (immutable) rather than `date` (mutated by carry-over) means a day's stats
+ * always reflect the targets planned for it, even after unfinished ones are
+ * re-dated forward — otherwise a past day would inflate to 100% once its
+ * incomplete targets were carried away, leaving only the completed ones behind.
  */
 export async function upsertDailyStats(userId: string, date: string) {
   const [stats] = await db
@@ -45,7 +48,7 @@ export async function upsertDailyStats(userId: string, date: string) {
       pointsEarned: sql<number>`coalesce(sum(${targets.points}) filter (where ${targets.completed}), 0)`,
     })
     .from(targets)
-    .where(and(eq(targets.userId, userId), eq(targets.date, date)))
+    .where(and(eq(targets.userId, userId), eq(targets.originalDate, date)))
 
   const snapshot = scoreSnapshot(Number(stats.total), Number(stats.completed), Number(stats.pointsEarned))
 
@@ -58,16 +61,17 @@ export async function upsertDailyStats(userId: string, date: string) {
 }
 
 /**
- * Freeze a `daily_stats` snapshot for every past day that still has targets
- * dated before `today`. Runs before carry-over re-dates rows, so the
- * snapshot captures each day's final state for history/calendar use.
+ * Recompute the `daily_stats` snapshot for every past original-day. Snapshots
+ * are keyed on `originalDate`, so this is now idempotent (carry-over no longer
+ * corrupts past days); it remains as a self-healing pass that keeps history
+ * accurate and repairs any stale rows.
  */
 async function freezeDailyStats(userId: string, today: string) {
   const pastDates = await db
-    .select({ date: targets.date })
+    .select({ date: targets.originalDate })
     .from(targets)
-    .where(and(eq(targets.userId, userId), lt(targets.date, today)))
-    .groupBy(targets.date)
+    .where(and(eq(targets.userId, userId), lt(targets.originalDate, today)))
+    .groupBy(targets.originalDate)
 
   for (const { date } of pastDates) {
     await upsertDailyStats(userId, date)
@@ -323,7 +327,7 @@ export async function toggleTarget(
   const day = today ?? (await getToday())
 
   const [targetRow] = await db
-    .select({ points: targets.points })
+    .select({ points: targets.points, originalDate: targets.originalDate })
     .from(targets)
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
 
@@ -338,10 +342,13 @@ export async function toggleTarget(
     .update(targets)
     .set({ completed, completedDate: completed ? day : null, actualMinutes: completed ? cleanMinutes : null })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
-  const snapshot = await upsertDailyStats(userId, day)
+  // Stats are keyed on the target's original day, so a carried-over backlog
+  // task counts toward the day it was planned for, not today.
+  const snapshot = targetRow ? await upsertDailyStats(userId, targetRow.originalDate) : null
 
   if (completed && targetRow) {
-    if (snapshot.allCompleted) await notifyAllCompleted(userId, day)
+    // Only celebrate "all done" for a task that belongs to today.
+    if (targetRow.originalDate === day && snapshot?.allCompleted) await notifyAllCompleted(userId, day)
     const newPoints = await getPoints(userId)
     await notifyOvertaken(userId, newPoints - targetRow.points, newPoints)
   }
@@ -358,10 +365,18 @@ export async function toggleTarget(
 export async function moveTargetToToday(id: number, today?: string) {
   const userId = await getUserId()
   const day = today ?? (await getToday())
+  const [row] = await db
+    .select({ originalDate: targets.originalDate })
+    .from(targets)
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   await db
     .update(targets)
     .set({ originalDate: day })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  // Re-homing the target's original day moves it between two days' stats:
+  // refresh today and the day it left.
+  await upsertDailyStats(userId, day)
+  if (row && row.originalDate !== day) await upsertDailyStats(userId, row.originalDate)
   revalidatePath("/")
 }
 
@@ -378,9 +393,13 @@ export async function updateTargetTitle(id: number, title: string) {
 
 export async function deleteTarget(id: number, today?: string) {
   const userId = await getUserId()
-  const day = today ?? (await getToday())
+  const [row] = await db
+    .select({ originalDate: targets.originalDate })
+    .from(targets)
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   await db.delete(targets).where(and(eq(targets.id, id), eq(targets.userId, userId)))
-  await upsertDailyStats(userId, day)
+  // Refresh the snapshot for the day this target belonged to (its original day).
+  if (row) await upsertDailyStats(userId, row.originalDate)
   revalidatePath("/")
 }
 
