@@ -13,22 +13,27 @@ const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
 // COLOR: calendar heatmap is now a single dot inside each subtle square cell.
 // Dot color comes from the redesign tokens (globals.css): inert grey → coral →
-// amber → brand → green as completion climbs.
+// amber → brand → green as on-time completion climbs.
+//
+// The dot scores ON-TIME completion only — a target counts toward the day's
+// color just when it was finished on that day (completedDate === originalDate).
+// Carried-over targets finished late still earn their points, but they no longer
+// turn the original day green; green means "done on the day", not "done later".
 const LEGEND = [
   { label: "No targets", dot: "var(--tx-faint)" },
-  { label: "0% completed", dot: "var(--coral)" },
-  { label: "1-49% completed", dot: "var(--amber)" },
-  { label: "50-99% completed", dot: "var(--accent-1)" },
-  { label: "100% completed", dot: "var(--green)" },
+  { label: "0% on time", dot: "var(--coral)" },
+  { label: "1-49% on time", dot: "var(--amber)" },
+  { label: "50-99% on time", dot: "var(--accent-1)" },
+  { label: "100% on time", dot: "var(--green)" },
 ] as const
 
 // Heatmap dot color for a cell, or null for cells that should stay dot-free
-// (no targets, and today before anything is done — no discouraging red).
+// (no targets, and today before anything is done on time — no discouraging red).
 function heatDot(day: DayStat | undefined, isToday: boolean): string | null {
   if (!day || day.totalTargets === 0) return null
-  if (day.completionPercent === 0) return isToday ? null : LEGEND[1].dot
-  if (day.completionPercent < 0.5) return LEGEND[2].dot
-  if (day.completionPercent < 1) return LEGEND[3].dot
+  if (day.onTimePercent === 0) return isToday ? null : LEGEND[1].dot
+  if (day.onTimePercent < 0.5) return LEGEND[2].dot
+  if (day.onTimePercent < 1) return LEGEND[3].dot
   return LEGEND[4].dot
 }
 

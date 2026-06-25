@@ -20,7 +20,13 @@ export type DayStat = {
   date: string
   totalTargets: number
   completedTargets: number
+  // Targets finished on their own day (completedDate === originalDate). Late
+  // carry-over finishes are excluded; this drives the calendar heatmap so the
+  // green dot means "done on the day", not "done eventually".
+  onTimeCompleted: number
   completionPercent: number
+  // onTimeCompleted / totalTargets — the fraction the heatmap colors by.
+  onTimePercent: number
   dailyScore: number
   pointsEarned: number
 }
@@ -37,13 +43,20 @@ export async function getMonthStats(year: number, month: number): Promise<DaySta
   // Recompute every day in this month that has targets, keyed on originalDate.
   // This self-heals the snapshot before we read it — including any past day the
   // old date-keyed aggregation left stuck at 100% (green) after its unfinished
-  // targets were carried away — without needing a dashboard visit first.
+  // targets were carried away — without needing a dashboard visit first. The
+  // same pass also tallies on-time finishes (completedDate === originalDate;
+  // legacy null completedDate counts as on-time, matching the day dialog) so the
+  // heatmap can color by on-time completion rather than total completion.
   const monthDates = await db
-    .select({ date: targets.originalDate })
+    .select({
+      date: targets.originalDate,
+      onTime: sql<number>`count(*) filter (where ${targets.completed} and (${targets.completedDate} is null or ${targets.completedDate} = ${targets.originalDate}))`,
+    })
     .from(targets)
     .where(and(eq(targets.userId, userId), gte(targets.originalDate, start), lt(targets.originalDate, end)))
     .groupBy(targets.originalDate)
   await Promise.all(monthDates.map(({ date }) => upsertDailyStats(userId, date)))
+  const onTimeByDate = new Map(monthDates.map((r) => [r.date, Number(r.onTime)]))
 
   const rows = await db
     .select({
@@ -56,10 +69,15 @@ export async function getMonthStats(year: number, month: number): Promise<DaySta
     .from(dailyStats)
     .where(and(eq(dailyStats.userId, userId), gte(dailyStats.date, start), lt(dailyStats.date, end)))
 
-  return rows.map((r) => ({
-    ...r,
-    completionPercent: r.totalTargets > 0 ? r.completedTargets / r.totalTargets : 0,
-  }))
+  return rows.map((r) => {
+    const onTimeCompleted = onTimeByDate.get(r.date) ?? 0
+    return {
+      ...r,
+      onTimeCompleted,
+      completionPercent: r.totalTargets > 0 ? r.completedTargets / r.totalTargets : 0,
+      onTimePercent: r.totalTargets > 0 ? onTimeCompleted / r.totalTargets : 0,
+    }
+  })
 }
 
 export type DateTarget = {
