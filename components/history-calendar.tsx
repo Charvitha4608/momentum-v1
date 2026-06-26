@@ -1,13 +1,17 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Check, ChevronLeft, ChevronRight, Clock, X } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { getTargetsForDate, type DateTarget, type DayStat } from "@/app/actions/history"
+import { toggleTarget } from "@/app/actions/targets"
+import { completionStatus, COMPLETION_META } from "@/lib/completion"
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
@@ -25,12 +29,16 @@ const LEGEND = [
   { label: "1-49% on time", dot: "var(--amber)" },
   { label: "50-99% on time", dot: "var(--accent-1)" },
   { label: "100% on time", dot: "var(--green)" },
+  { label: "Planned", dot: "var(--color-calendar-planned)" },
 ] as const
 
 // Heatmap dot color for a cell, or null for cells that should stay dot-free
 // (no targets, and today before anything is done on time — no discouraging red).
-function heatDot(day: DayStat | undefined, isToday: boolean): string | null {
+function heatDot(day: DayStat | undefined, isToday: boolean, isFuture: boolean): string | null {
   if (!day || day.totalTargets === 0) return null
+  // A future day that already has targets is *planned*, not failed — give it a
+  // neutral pending tone instead of the red "0% on time" colour.
+  if (isFuture) return LEGEND[5].dot
   if (day.onTimePercent === 0) return isToday ? null : LEGEND[1].dot
   if (day.onTimePercent < 0.5) return LEGEND[2].dot
   if (day.onTimePercent < 1) return LEGEND[3].dot
@@ -50,6 +58,21 @@ export function HistoryCalendar({
 }) {
   const [selected, setSelected] = useState<{ date: string } | null>(null)
   const [dayTargets, setDayTargets] = useState<DateTarget[] | null>(null)
+  const router = useRouter()
+  const [, startToggle] = useTransition()
+
+  // Toggle a target from the day-detail panel (today or any future day). The
+  // panel updates optimistically; router.refresh() then re-pulls the month so
+  // the heatmap dot and weekly score reflect the change.
+  function toggleDayTarget(t: DateTarget, checked: boolean, viewedDate: string) {
+    setDayTargets((prev) =>
+      prev ? prev.map((x) => (x.id === t.id ? { ...x, completed: checked, completedDate: checked ? today : null } : x)) : prev
+    )
+    startToggle(async () => {
+      await toggleTarget(t.id, checked, viewedDate)
+      router.refresh()
+    })
+  }
 
   // On desktop the day-detail popup floats inside the calendar card (portaled
   // into cardRef + absolute-positioned). On mobile it stays the standard
@@ -85,8 +108,12 @@ export function HistoryCalendar({
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })
   const selectedDate = selected?.date ?? ""
+  const isFutureDay = selectedDate > today
+  // Today and future days are checkable from the panel; past days stay read-only.
+  const isEditable = selectedDate !== "" && selectedDate >= today
   const onTimeCount = dayTargets?.filter((t) => t.completed && (!t.completedDate || t.completedDate === selectedDate)).length ?? 0
   const lateCount = dayTargets?.filter((t) => t.completed && t.completedDate && t.completedDate !== selectedDate).length ?? 0
+  const completedCount = dayTargets?.filter((t) => t.completed).length ?? 0
   const pointsEarned = dayTargets?.filter((t) => t.completed).reduce((sum, t) => sum + t.points, 0) ?? 0
 
   let prevYear = year
@@ -137,7 +164,8 @@ export function HistoryCalendar({
               if (!cell) return <div key={`empty-${i}`} className="aspect-square" />
               const stat = dayMap.get(cell.date)
               const isToday = cell.date === today
-              const dot = heatDot(stat, isToday)
+              const isFuture = cell.date > today
+              const dot = heatDot(stat, isToday, isFuture)
               return (
                 <button
                   key={cell.date}
@@ -195,40 +223,57 @@ export function HistoryCalendar({
                 <>
                   <ul className="mt-4 flex flex-col gap-2">
                     {dayTargets.map((t) => {
-                      const isLate = t.completed && t.completedDate && t.completedDate !== selectedDate
-                      const lateLabel = isLate
-                        ? new Date(`${t.completedDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                        : null
+                      const status = completionStatus(t)
+                      const meta = status ? COMPLETION_META[status] : null
+                      const lateLabel =
+                        status === "late" && t.completedDate
+                          ? new Date(`${t.completedDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : null
                       return (
                         <li
                           key={t.id}
                           className="flex items-center gap-2.5 rounded-lg bg-surface-2 px-3 py-2.5"
                         >
-                          {isLate ? (
+                          {isEditable ? (
+                            // Today / future days are checkable straight from the panel.
+                            <Checkbox
+                              checked={t.completed}
+                              onCheckedChange={(checked) => toggleDayTarget(t, checked, selectedDate)}
+                              aria-label={t.completed ? `Mark "${t.title}" incomplete` : `Mark "${t.title}" complete`}
+                            />
+                          ) : status === "late" ? (
                             // COLOR: completed-late marker uses amber to signal "done, but not on this day"
                             <Clock className="size-4 shrink-0 text-amber-500" />
                           ) : t.completed ? (
-                            // COLOR: completed marker uses primary, matching the points/score figures elsewhere
-                            <Check className="size-4 shrink-0 text-primary" />
+                            <Check className={cn("size-4 shrink-0", meta?.textClass ?? "text-primary")} />
                           ) : (
                             <X className="size-4 shrink-0 text-muted-foreground" />
                           )}
                           <span className={cn("flex-1 text-sm", !t.completed && "text-muted-foreground")}>
                             {t.title}
                           </span>
+                          {meta && <span className={cn("shrink-0 text-xs font-medium", meta.textClass)}>{meta.label}</span>}
                           {lateLabel && (
-                            <span className="shrink-0 text-xs text-muted-foreground">completed {lateLabel}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">{lateLabel}</span>
                           )}
                         </li>
                       )
                     })}
                   </ul>
                   <div className="mt-3 flex items-center justify-between px-1 text-sm text-muted-foreground">
-                    <span>
-                      {onTimeCount}/{dayTargets.length} on time{lateCount > 0 ? ` · ${lateCount} completed later` : ""}
-                    </span>
+                    {isFutureDay ? (
+                      <span>
+                        {completedCount}/{dayTargets.length} planned
+                      </span>
+                    ) : (
+                      <span>
+                        {onTimeCount}/{dayTargets.length} on time{lateCount > 0 ? ` · ${lateCount} completed later` : ""}
+                      </span>
+                    )}
                     {/* COLOR: points earned uses primary, matching the points stat elsewhere */}
-                    <span className="font-semibold text-primary">{pointsEarned} points earned</span>
+                    <span className="font-semibold text-primary">
+                      {pointsEarned} points{isFutureDay ? "" : " earned"}
+                    </span>
                   </div>
                 </>
               )}

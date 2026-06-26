@@ -19,6 +19,7 @@ import {
   logProposalFeedback,
   type ScheduleItem,
 } from "@/app/actions/planner"
+import { getScheduleForRange, type ScheduleDay } from "@/app/actions/history"
 import {
   runAssistantAgent,
   appendAnswer,
@@ -53,12 +54,21 @@ export type AssistantResult =
   | { kind: "goal_plan"; proposal: GoalPlanProposal; pillarName: string | null; source: "ai" | "heuristic" }
   | { kind: "plan_week"; sessionId: number; days: string[]; items: ScheduleItem[] }
   | { kind: "planner_question"; sessionId: number; question: ClarifyingQuestion }
+  // Read-only answer to "what's planned for X?" — rendered directly, no confirm.
+  | { kind: "schedule"; start: string; end: string; days: ScheduleDay[] }
   | { kind: "empty"; message: string }
 
 async function finishTurn(ctx: AssistantContext, turn: AssistantTurn): Promise<AssistantResult> {
   if (turn.kind === "question") {
     // Heuristic mode never asks; a clarifying question is always model-driven.
     return { kind: "question", question: turn.question, messages: turn.messages, source: "ai" }
+  }
+
+  if (turn.kind === "read_schedule") {
+    // Direct-answer path: read the real schedule and report it. No proposal,
+    // no confirm step, no mutation.
+    const days = await getScheduleForRange(turn.start, turn.end)
+    return { kind: "schedule", start: turn.start, end: turn.end, days }
   }
 
   const { proposal } = turn

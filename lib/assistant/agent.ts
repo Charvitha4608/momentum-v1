@@ -89,6 +89,9 @@ export type AssistantProposal = BreakdownProposal | RecurringProposal | PlanWeek
 export type AssistantTurn =
   | { kind: "question"; question: ClarifyingQuestion; messages: unknown[] }
   | { kind: "proposal"; proposal: AssistantProposal; source: "ai" | "heuristic"; messages: unknown[] }
+  // A read-only "what's planned for X?" query. Resolved to a schedule readout by
+  // the server action — never staged as a propose → confirm → apply proposal.
+  | { kind: "read_schedule"; start: string; end: string; messages: unknown[] }
 
 const SYSTEM_PROMPT = `You are the command bar assistant inside Momentum, a personal-growth app where users invest effort into "pillars" (life areas like DSA, Gym, Reading).
 
@@ -97,9 +100,11 @@ The user types one short natural-language command. Turn it into exactly ONE prop
 - breakdown_goal: when the user states a goal or project WITHOUT a measurable quantity-by-deadline (e.g. "learn React", "prepare for the interview"). Break it into 2-6 concrete, actionable tasks and map EACH task to the most relevant existing pillar by id. Tasks are unscheduled to-dos.
 - create_recurring: when the user describes a repeating habit with no fixed end total (e.g. "gym mon/wed/fri", "read 30 min every day", "review notes every 3 days"). Map it to the most relevant pillar.
 - plan_week: when the user asks to schedule, organize, or plan their week/day (e.g. "plan my week", "organize my schedule"). Takes no arguments.
+- read_schedule: when the user ASKS what is already planned, scheduled, or done for a day or range (e.g. "what's on Friday?", "what did I plan for tomorrow?", "show my week", "what did I do yesterday?"). Resolve relative dates ("today", "tomorrow", "this Friday", "next week") to absolute YYYY-MM-DD using today's date. This only READS and reports back; it never creates or changes anything.
 
 Rules:
 - ALWAYS choose a pillar id from the provided pillars list. Never invent ids.
+- read_schedule vs plan_week: a QUESTION about what's planned ("what's on…", "show…", "what did I…") is read_schedule; a REQUEST to build a schedule ("plan…", "organize…", "schedule my…") is plan_week.
 - For plan_goal, "deadline" must be an absolute YYYY-MM-DD date computed from today (e.g. "2 weeks" = today + 14 days). Prefer a daily cadence; use weekly with specific weekdays only if the user implies rest days (e.g. "weekdays", "mon-sat").
 - Nothing you propose is applied automatically; the user reviews and confirms it. So prefer proposing over asking.
 - Only call ask_clarifying_question when the command is too ambiguous to map to any tool, and give 2-4 concrete quick-reply options (never free text).
@@ -207,6 +212,19 @@ function functionDeclarations() {
       description: "Run the weekly planner to schedule the user's open tasks. Takes no arguments.",
       parameters: { type: "OBJECT", properties: {} },
     },
+    {
+      name: "read_schedule",
+      description:
+        "Read back what is already planned/done for a date or date range, to answer a question like 'what's on Friday?' or 'show my week'. Resolve relative dates to absolute YYYY-MM-DD from today. Reads only — never creates or edits tasks.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          start: { type: "STRING", description: "start date YYYY-MM-DD (inclusive)" },
+          end: { type: "STRING", description: "end date YYYY-MM-DD (inclusive); equal to start for a single day" },
+        },
+        required: ["start", "end"],
+      },
+    },
   ]
 }
 
@@ -269,7 +287,7 @@ export async function runAssistantAgent(
 ): Promise<AssistantTurn> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages: [] }
+    return heuristicTurn(ctx, userInput)
   }
 
   const messages: GeminiContent[] =
@@ -284,7 +302,7 @@ export async function runAssistantAgent(
 
       const fc = findFunctionCall(content.parts)
       if (!fc) {
-        return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages }
+        return heuristicTurn(ctx, userInput)
       }
 
       if (fc.name === "ask_clarifying_question") {
@@ -301,13 +319,77 @@ export async function runAssistantAgent(
         }
       }
 
+      if (fc.name === "read_schedule") {
+        const range = normalizeRange(fc.args, ctx.today)
+        return { kind: "read_schedule", start: range.start, end: range.end, messages }
+      }
+
       const proposal = proposalFromCall(fc.name, fc.args ?? {}, ctx)
       if (proposal) return { kind: "proposal", proposal, source: "ai", messages }
     }
-    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages }
+    return heuristicTurn(ctx, userInput)
   } catch {
-    return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages: [] }
+    return heuristicTurn(ctx, userInput)
   }
+}
+
+/** Validate the model's date range, defaulting to today and ordering start ≤ end. */
+function normalizeRange(args: Record<string, unknown> | undefined, today: string): { start: string; end: string } {
+  const isISO = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
+  const a = args ?? {}
+  const start = isISO(a.start) ? a.start : today
+  const end = isISO(a.end) ? a.end : start
+  return start <= end ? { start, end } : { start: end, end: start }
+}
+
+/**
+ * Heuristic routing used whenever the model is unavailable. Detects a read
+ * ("what's planned for X?") intent before falling back to a proposal, so the
+ * command bar can still answer schedule questions with no API key.
+ */
+function heuristicTurn(ctx: AssistantContext, userInput: string): AssistantTurn {
+  const read = detectReadIntent(ctx, userInput)
+  if (read) return { kind: "read_schedule", start: read.start, end: read.end, messages: [] }
+  return { kind: "proposal", proposal: heuristicProposal(ctx, userInput), source: "heuristic", messages: [] }
+}
+
+function dowOf(date: string): number {
+  const [y, m, d] = date.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+}
+/** Monday of the calendar week containing `date`. */
+function weekMonday(date: string): string {
+  const dow = dowOf(date)
+  return shiftToday(date, dow === 0 ? -6 : 1 - dow)
+}
+/** The next strictly-future Monday after `date`. */
+function upcomingMonday(date: string): string {
+  const dow = dowOf(date)
+  return shiftToday(date, ((8 - dow) % 7) || 7)
+}
+/** The next occurrence of weekday `target` (0=Sun..6=Sat), or `date` itself if it matches. */
+function nextWeekday(date: string, target: number): string {
+  return shiftToday(date, (((target - dowOf(date)) % 7) + 7) % 7)
+}
+
+/** Map a read-style command to a date range, or null if it isn't a read query. */
+function detectReadIntent(ctx: AssistantContext, input: string): { start: string; end: string } | null {
+  const lower = input.toLowerCase()
+  // Require clear "reading" phrasing so build/plan commands fall through to proposals.
+  if (!/\b(what'?s|what is|what was|what did|whats|show|view|list|see|do i have|did i)\b/.test(lower)) return null
+
+  const today = ctx.today
+  if (/\btomorrow\b/.test(lower)) { const d = shiftToday(today, 1); return { start: d, end: d } }
+  if (/\byesterday\b/.test(lower)) { const d = shiftToday(today, -1); return { start: d, end: d } }
+  if (/\bnext week\b/.test(lower)) { const m = upcomingMonday(today); return { start: m, end: shiftToday(m, 6) } }
+  if (/\b(this week|my week|the week|week)\b/.test(lower)) { const m = weekMonday(today); return { start: m, end: shiftToday(m, 6) } }
+  for (const [token, dow] of Object.entries(WEEKDAY_TOKENS)) {
+    if (new RegExp(`\\b${token}\\b`).test(lower)) { const d = nextWeekday(today, dow); return { start: d, end: d } }
+  }
+  if (/\btoday\b/.test(lower)) return { start: today, end: today }
+  // A generic "what's planned/scheduled?" with no date defaults to today.
+  if (/\b(planned|schedule|scheduled|plan|targets?|tasks?)\b/.test(lower)) return { start: today, end: today }
+  return null
 }
 
 /** Validate + normalize a model tool call into a proposal we trust. */

@@ -1,6 +1,6 @@
 "use server"
 
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm"
+import { and, asc, eq, gte, lt, lte, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
 import { auth } from "@/lib/auth"
@@ -9,6 +9,7 @@ import { dailyStats, targets, pillars } from "@/lib/db/schema"
 import { getToday, shiftDateString } from "@/lib/date"
 import { upsertDailyStats } from "@/app/actions/targets"
 import { computeStreak as computeGlobalStreak, buildStatsMap } from "@/lib/streak"
+import { completionStatus, type CompletionStatus } from "@/lib/completion"
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -85,6 +86,7 @@ export type DateTarget = {
   title: string
   completed: boolean
   completedDate: string | null
+  originalDate: string
   points: number
   pillarId: number
   pillarName: string
@@ -102,6 +104,7 @@ export async function getTargetsForDate(date: string): Promise<DateTarget[]> {
       title: targets.title,
       completed: targets.completed,
       completedDate: targets.completedDate,
+      originalDate: targets.originalDate,
       points: targets.points,
       pillarId: targets.pillarId,
       pillarName: pillars.name,
@@ -112,6 +115,49 @@ export async function getTargetsForDate(date: string): Promise<DateTarget[]> {
     .innerJoin(pillars, eq(targets.pillarId, pillars.id))
     .where(and(eq(targets.userId, userId), eq(targets.originalDate, date)))
     .orderBy(asc(targets.sortOrder), asc(targets.id))
+}
+
+export type ScheduleDayTarget = DateTarget & { status: CompletionStatus }
+export type ScheduleDay = { date: string; targets: ScheduleDayTarget[] }
+
+/**
+ * Read-only view of everything planned (completed AND incomplete) across an
+ * inclusive [start, end] date range, grouped by the day it was planned for
+ * (`originalDate`) and tagged with each target's ahead/on-time/late status.
+ * Backs the command bar's "what's planned for X?" answer — it never mutates.
+ */
+export async function getScheduleForRange(start: string, end: string): Promise<ScheduleDay[]> {
+  const userId = await getUserId()
+  const [lo, hi] = start <= end ? [start, end] : [end, start]
+
+  const rows = await db
+    .select({
+      id: targets.id,
+      title: targets.title,
+      completed: targets.completed,
+      completedDate: targets.completedDate,
+      originalDate: targets.originalDate,
+      points: targets.points,
+      pillarId: targets.pillarId,
+      pillarName: pillars.name,
+      pillarIcon: pillars.icon,
+      pillarColor: pillars.color,
+    })
+    .from(targets)
+    .innerJoin(pillars, eq(targets.pillarId, pillars.id))
+    .where(and(eq(targets.userId, userId), gte(targets.originalDate, lo), lte(targets.originalDate, hi)))
+    .orderBy(asc(targets.originalDate), asc(targets.sortOrder), asc(targets.id))
+
+  const byDate = new Map<string, ScheduleDayTarget[]>()
+  for (const row of rows) {
+    const list = byDate.get(row.originalDate) ?? []
+    list.push({ ...row, status: completionStatus(row) })
+    byDate.set(row.originalDate, list)
+  }
+
+  return [...byDate.entries()]
+    .map(([date, dayTargets]) => ({ date, targets: dayTargets }))
+    .sort((a, b) => a.date.localeCompare(b.date))
 }
 
 export type DayPillarStat = {
@@ -192,6 +238,7 @@ export async function getWeekTargets(dateInWeek: string): Promise<WeekDayTargets
       title: targets.title,
       completed: targets.completed,
       completedDate: targets.completedDate,
+      originalDate: targets.originalDate,
       points: targets.points,
       pillarId: targets.pillarId,
       pillarName: pillars.name,
@@ -211,6 +258,7 @@ export async function getWeekTargets(dateInWeek: string): Promise<WeekDayTargets
       title: row.title,
       completed: row.completed,
       completedDate: row.completedDate,
+      originalDate: row.originalDate,
       points: row.points,
       pillarId: row.pillarId,
       pillarName: row.pillarName,

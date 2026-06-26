@@ -32,6 +32,7 @@
   --color-calendar-low: var(--calendar-low);
   --color-calendar-mid: var(--calendar-mid);
   --color-calendar-full: var(--calendar-full);
+  --color-calendar-planned: var(--calendar-planned);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -94,6 +95,7 @@
   --calendar-low: #959ec9; /* COLOR: 1-49% completed */
   --calendar-mid: #4e5174; /* COLOR: 50-99% completed */
   --calendar-full: #28264B; /* COLOR: 100% completed */
+  --calendar-planned: #6d6acb; /* COLOR: future day with targets planned (pending, not a failure) */
 
   /* ── Redesign design tokens (design/momentum-redesign.html) ──
      Raw values for the new system. Not yet applied to any screen;

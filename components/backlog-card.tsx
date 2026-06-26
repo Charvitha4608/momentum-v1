@@ -7,6 +7,8 @@ import { ArrowUpRight, Check, CircleX, ListTodo } from "lucide-react"
 
 import { moveTargetToToday, toggleTarget } from "@/app/actions/targets"
 import { Card, CardContent } from "@/components/ui/card"
+import { completionStatus, COMPLETION_META } from "@/lib/completion"
+import { cn } from "@/lib/utils"
 
 type BacklogItem = {
   id: number
@@ -17,6 +19,10 @@ type BacklogItem = {
   pillarIcon: string
   pillarColor: string
   pillarName: string
+  // Set optimistically once the user completes a backlog item, so the row can
+  // flash its timing badge ("Late") before it clears on the next refresh.
+  completed?: boolean
+  completedDate?: string | null
 }
 
 function formatDateLabel(dateStr: string) {
@@ -37,11 +43,16 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
   }
 
   function handleComplete(id: number) {
-    setItems((prev) => prev.filter((item) => item.id !== id))
+    // Mark it done in place so the user sees the "Late" badge land, then drop it
+    // (a completed item is no longer backlog) and resync from the server.
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, completed: true, completedDate: today } : item)))
     startTransition(async () => {
       await toggleTarget(id, true, today)
-      router.refresh()
     })
+    setTimeout(() => {
+      setItems((prev) => prev.filter((item) => item.id !== id))
+      router.refresh()
+    }, 1100)
   }
 
   const groups: { date: string; items: BacklogItem[] }[] = []
@@ -76,39 +87,63 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
                 >
                   <h3 className="mb-1 px-2 text-sm font-medium text-muted-foreground">{formatDateLabel(group.date)}</h3>
                   <ul className="flex flex-col gap-1">
-                    {group.items.map((item) => (
-                      <li key={item.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-secondary/50">
-                        {/* COLOR: destructive marker flags an overdue, still-incomplete target */}
-                        <CircleX className="size-4 shrink-0 text-destructive" aria-hidden />
-                        <span className="flex-1 truncate text-sm text-foreground">{item.title}</span>
-                        <span
-                          className="flex shrink-0 items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
-                          title={item.pillarName}
-                        >
-                          <span aria-hidden>{item.pillarIcon}</span>
-                          <span className="size-1.5 rounded-full" style={{ backgroundColor: item.pillarColor }} aria-hidden />
-                        </span>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            type="button"
-                            aria-label={`Move "${item.title}" to today`}
-                            onClick={() => handleMoveToToday(item.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-primary"
+                    {group.items.map((item) => {
+                      const status = item.completed
+                        ? completionStatus({
+                            completed: true,
+                            completedDate: item.completedDate ?? today,
+                            originalDate: item.originalDate,
+                          })
+                        : null
+                      const meta = status ? COMPLETION_META[status] : null
+                      return (
+                        <li key={item.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-secondary/50">
+                          {item.completed ? (
+                            <Check className={cn("size-4 shrink-0", meta?.textClass ?? "text-primary")} aria-hidden />
+                          ) : (
+                            // COLOR: destructive marker flags an overdue, still-incomplete target
+                            <CircleX className="size-4 shrink-0 text-destructive" aria-hidden />
+                          )}
+                          <span
+                            className={cn(
+                              "flex-1 truncate text-sm",
+                              item.completed ? "text-muted-foreground line-through" : "text-foreground"
+                            )}
                           >
-                            <ArrowUpRight className="size-3.5" />
-                          </button>
-                          {/* COLOR: complete action mirrors FriendManager's accept button — solid primary */}
-                          <button
-                            type="button"
-                            aria-label={`Mark "${item.title}" complete`}
-                            onClick={() => handleComplete(item.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/80"
+                            {item.title}
+                          </span>
+                          {meta && <span className={cn("shrink-0 text-xs font-medium", meta.textClass)}>{meta.label}</span>}
+                          <span
+                            className="flex shrink-0 items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+                            title={item.pillarName}
                           >
-                            <Check className="size-3.5" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
+                            <span aria-hidden>{item.pillarIcon}</span>
+                            <span className="size-1.5 rounded-full" style={{ backgroundColor: item.pillarColor }} aria-hidden />
+                          </span>
+                          {!item.completed && (
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                aria-label={`Move "${item.title}" to today`}
+                                onClick={() => handleMoveToToday(item.id)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-primary"
+                              >
+                                <ArrowUpRight className="size-3.5" />
+                              </button>
+                              {/* COLOR: complete action mirrors FriendManager's accept button — solid primary */}
+                              <button
+                                type="button"
+                                aria-label={`Mark "${item.title}" complete`}
+                                onClick={() => handleComplete(item.id)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/80"
+                              >
+                                <Check className="size-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </motion.div>
               ))}

@@ -4,7 +4,8 @@ import type React from "react"
 
 import { useState, useEffect, useTransition, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Plus, X, SlidersHorizontal, Check } from "lucide-react"
+import { Plus, X, SlidersHorizontal, Check, CalendarDays } from "lucide-react"
+import { shiftDateString } from "@/lib/date-utils"
 import { addTarget, toggleTarget, deleteTarget, updateTargetTitle, updateTargetDetails, getTodayTargets, type TargetSchedulingMeta, type TargetEffortMeta } from "@/app/actions/targets"
 import type { ActiveLongTermGoal } from "@/app/actions/goals"
 import { Card, CardContent } from "@/components/ui/card"
@@ -62,6 +63,11 @@ export function TargetList({
   const [newEstimatedMinutes, setNewEstimatedMinutes] = useState<number | null>(null)
   const [newGoalId, setNewGoalId] = useState<number | null>(null)
   const [metaOpen, setMetaOpen] = useState(false)
+  // Which day a newly-added target is scheduled for. Defaults to today; a future
+  // pick routes the target to that day instead of this (today-only) list.
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(date)
+  const [addedNote, setAddedNote] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState("")
   // Target awaiting an actual-minutes entry after the user checked it complete.
@@ -87,6 +93,16 @@ export function TargetList({
     return pendingIds.current.get(id) ?? id
   }
 
+  /** Short, friendly label for a scheduled-for date: "Today" / "Tomorrow" / "Jun 28". */
+  function dateLabel(value: string): string {
+    if (value === date) return "Today"
+    if (value === shiftDateString(date, 1)) return "Tomorrow"
+    const [y, m, d] = value.split("-").map(Number)
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+  }
+
+  const quickDates = [date, shiftDateString(date, 1), shiftDateString(date, 2)]
+
   function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     const title = newTitle.trim()
@@ -94,31 +110,8 @@ export function TargetList({
     const pillar = pillarOptions.find((p) => p.id === newPillarId)
     if (!pillar) return
     const quantity = newQuantity > 0 ? Math.round(newQuantity) : 1
-    // optimistic
-    const tempId = -Date.now()
-    setItems((prev) => [
-      ...prev,
-      {
-        id: tempId,
-        title,
-        completed: false,
-        date,
-        points: 10,
-        sortOrder: prev.length + 1,
-        pillarId: pillar.id,
-        pillarName: pillar.name,
-        pillarIcon: pillar.icon,
-        pillarColor: pillar.color,
-        quantity,
-        estimatedMinutes: newEstimatedMinutes,
-        actualMinutes: null,
-        longTermGoalId: newGoalId,
-        durationMinutes: newDuration,
-        preferredTimeOfDay: newTimeOfDay,
-      },
-    ])
-    setNewTitle("")
-    inputRef.current?.focus()
+    const targetDate = selectedDate
+    const scheduledAhead = targetDate !== date
 
     const meta: TargetSchedulingMeta | undefined =
       newDuration !== null || newTimeOfDay !== null
@@ -129,26 +122,64 @@ export function TargetList({
       estimatedMinutes: newEstimatedMinutes,
       longTermGoalId: newGoalId,
     }
+
+    if (scheduledAhead) {
+      // A future-dated target lives on another day, so it never appears in this
+      // today-only list. Persist it and surface a brief inline confirmation; the
+      // user can find/complete it from that day in the calendar.
+      startTransition(async () => {
+        await addTarget(title, pillar.id, targetDate, meta, effort)
+      })
+      setAddedNote(`Added to ${dateLabel(targetDate)}`)
+      setTimeout(() => setAddedNote(null), 2500)
+    } else {
+      // optimistic insert into today's list
+      const tempId = -Date.now()
+      setItems((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          title,
+          completed: false,
+          date,
+          points: 10,
+          sortOrder: prev.length + 1,
+          pillarId: pillar.id,
+          pillarName: pillar.name,
+          pillarIcon: pillar.icon,
+          pillarColor: pillar.color,
+          quantity,
+          estimatedMinutes: newEstimatedMinutes,
+          actualMinutes: null,
+          longTermGoalId: newGoalId,
+          durationMinutes: newDuration,
+          preferredTimeOfDay: newTimeOfDay,
+        },
+      ])
+      const realIdPromise = new Promise<number>((resolve) => {
+        startTransition(async () => {
+          const created = await addTarget(title, pillar.id, targetDate, meta, effort)
+          if (created) {
+            setItems((prev) => prev.map((it) => (it.id === tempId ? { ...it, id: created.id } : it)))
+            resolve(created.id)
+          } else {
+            setItems((prev) => prev.filter((it) => it.id !== tempId))
+            resolve(tempId)
+          }
+          pendingIds.current.delete(tempId)
+        })
+      })
+      pendingIds.current.set(tempId, realIdPromise)
+    }
+
+    setNewTitle("")
+    inputRef.current?.focus()
     setNewDuration(null)
     setNewTimeOfDay(null)
     setNewQuantity(1)
     setNewEstimatedMinutes(null)
     setNewGoalId(goalsForPillar.length === 1 ? goalsForPillar[0].id : null)
-
-    const realIdPromise = new Promise<number>((resolve) => {
-      startTransition(async () => {
-        const created = await addTarget(title, pillar.id, date, meta, effort)
-        if (created) {
-          setItems((prev) => prev.map((it) => (it.id === tempId ? { ...it, id: created.id } : it)))
-          resolve(created.id)
-        } else {
-          setItems((prev) => prev.filter((it) => it.id !== tempId))
-          resolve(tempId)
-        }
-        pendingIds.current.delete(tempId)
-      })
-    })
-    pendingIds.current.set(tempId, realIdPromise)
+    setSelectedDate(date)
   }
 
   // Checking a target opens the actual-minutes prompt instead of completing
@@ -455,11 +486,62 @@ export function TargetList({
           <input
             ref={inputRef}
             value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Add today's target…"
+            onChange={(e) => {
+              setNewTitle(e.target.value)
+              if (addedNote) setAddedNote(null)
+            }}
+            placeholder={selectedDate === date ? "Add today's target…" : `Add target for ${dateLabel(selectedDate)}…`}
             aria-label="Add a new target"
             className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground/60 outline-none"
           />
+          {/* Schedule-for date: defaults to Today; pick a future day to plan ahead */}
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger
+              type="button"
+              aria-label="Choose which day to schedule this target"
+              title="Schedule this target for a future day"
+              className={`flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
+                selectedDate !== date
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-line text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              {dateLabel(selectedDate)}
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="end">
+              <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">Schedule for</p>
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {quickDates.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(value)
+                      setDatePickerOpen(false)
+                    }}
+                    className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                      selectedDate === value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
+                    }`}
+                  >
+                    {dateLabel(value)}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="date"
+                min={date}
+                value={selectedDate}
+                onChange={(e) => {
+                  if (e.target.value && e.target.value >= date) setSelectedDate(e.target.value)
+                }}
+                aria-label="Pick a specific date"
+                className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+              />
+            </PopoverContent>
+          </Popover>
           <PillarPicker
             pillars={pillarOptions}
             value={newPillarId}
@@ -575,6 +657,12 @@ export function TargetList({
             }}
           />
         </form>
+
+        {addedNote && (
+          <p className="flex items-center gap-1.5 px-2 pb-1 text-xs text-primary">
+            <Check className="h-3.5 w-3.5" /> {addedNote}
+          </p>
+        )}
 
         {completedItems.length > 0 && (
           <>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { Command, Sparkles, Loader2, Check, X, Pencil, ArrowRight, CalendarRange, Target } from "lucide-react"
+import { Command, Sparkles, Loader2, Check, X, Pencil, ArrowRight, CalendarRange, Target, Circle } from "lucide-react"
 
 import {
   startAssistant,
@@ -22,6 +22,8 @@ import {
   type ScheduleItem,
 } from "@/app/actions/planner"
 import type { RecurringProposal, GoalPlanProposal } from "@/lib/assistant/agent"
+import type { ScheduleDay } from "@/app/actions/history"
+import { COMPLETION_META } from "@/lib/completion"
 import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { AiBadge } from "@/components/ai-badge"
 import { TIME_OF_DAY_LABELS, type TimeOfDay } from "@/lib/planner/schedule"
@@ -239,6 +241,10 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
 
               {result?.kind === "goal_plan" && (
                 <GoalPlanPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} />
+              )}
+
+              {result?.kind === "schedule" && (
+                <ScheduleView start={result.start} end={result.end} days={result.days} />
               )}
             </div>
           </motion.div>
@@ -646,6 +652,75 @@ function RecurringPreview({
 function formatShortDate(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+}
+
+// ---------------------------------------------------------------------------
+// Schedule readout — the direct answer to "what's planned for X?". Read-only:
+// it lists each day's targets with their ahead/on-time/late status, no actions.
+// ---------------------------------------------------------------------------
+
+function formatScheduleHeader(iso: string, withWeekday: boolean): string {
+  const [y, m, d] = iso.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: withWeekday ? "long" : "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+function ScheduleView({ start, end, days }: { start: string; end: string; days: ScheduleDay[] }) {
+  const nonEmpty = days.filter((d) => d.targets.length > 0)
+  const heading = start === end ? formatScheduleHeader(start, true) : `${formatShortDate(start)} – ${formatShortDate(end)}`
+
+  return (
+    <div className="flex flex-col gap-3 p-2">
+      <div className="flex items-center gap-2">
+        <CalendarRange className="size-4 text-primary" />
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Schedule · {heading}</p>
+      </div>
+
+      {nonEmpty.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing planned for {start === end ? "this day" : "this range"}.</p>
+      ) : (
+        nonEmpty.map((day) => {
+          const done = day.targets.filter((t) => t.completed).length
+          return (
+            <div key={day.date} className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm font-medium text-foreground">{formatScheduleHeader(day.date, false)}</p>
+                <span className="text-xs text-muted-foreground">
+                  {done}/{day.targets.length} done
+                </span>
+              </div>
+              <ul className="flex flex-col gap-1">
+                {day.targets.map((t) => {
+                  const meta = t.status ? COMPLETION_META[t.status] : null
+                  return (
+                    <li key={t.id} className="flex items-center gap-2.5 rounded-lg bg-secondary/30 px-2.5 py-2 text-sm">
+                      {t.completed ? (
+                        <Check className={cn("size-4 shrink-0", meta?.textClass ?? "text-primary")} />
+                      ) : (
+                        <Circle className="size-3.5 shrink-0 text-muted-foreground/50" />
+                      )}
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                        <span className="size-1.5 rounded-full" style={{ backgroundColor: t.pillarColor }} aria-hidden />
+                        {t.pillarIcon}
+                      </span>
+                      <span className={cn("min-w-0 flex-1 truncate", t.completed && "text-muted-foreground line-through")}>
+                        {t.title}
+                      </span>
+                      {meta && <span className={cn("shrink-0 text-xs font-medium", meta.textClass)}>{meta.label}</span>}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
 }
 
 function GoalPlanPreview({

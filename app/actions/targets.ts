@@ -324,7 +324,13 @@ export async function toggleTarget(
   actualMinutes?: number | null
 ) {
   const userId = await getUserId()
-  const day = today ?? (await getToday())
+  // The real current day. `today`/`day` below is the day the user is acting
+  // *from* (today's list, a backlog row, or a calendar day-detail) and only
+  // gates the "all done today" celebration. `completedDate`, however, must be
+  // the actual day the box was checked so finishing a future task early reads
+  // as "ahead" and a carried-over task reads as "late" (see lib/completion).
+  const realToday = await getToday()
+  const day = today ?? realToday
 
   const [targetRow] = await db
     .select({ points: targets.points, originalDate: targets.originalDate })
@@ -340,15 +346,16 @@ export async function toggleTarget(
 
   await db
     .update(targets)
-    .set({ completed, completedDate: completed ? day : null, actualMinutes: completed ? cleanMinutes : null })
+    .set({ completed, completedDate: completed ? realToday : null, actualMinutes: completed ? cleanMinutes : null })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   // Stats are keyed on the target's original day, so a carried-over backlog
   // task counts toward the day it was planned for, not today.
   const snapshot = targetRow ? await upsertDailyStats(userId, targetRow.originalDate) : null
 
   if (completed && targetRow) {
-    // Only celebrate "all done" for a task that belongs to today.
-    if (targetRow.originalDate === day && snapshot?.allCompleted) await notifyAllCompleted(userId, day)
+    // Only celebrate "all done" for a task that belongs to today, completed today.
+    if (targetRow.originalDate === day && day === realToday && snapshot?.allCompleted)
+      await notifyAllCompleted(userId, day)
     const newPoints = await getPoints(userId)
     await notifyOvertaken(userId, newPoints - targetRow.points, newPoints)
   }
