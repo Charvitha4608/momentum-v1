@@ -26,12 +26,14 @@ export function RecurringTaskDialog({
   defaultPillarId,
   today,
   onPillarCreated,
+  onPillarUpdated,
   onSaved,
 }: {
   pillars: PillarOption[]
   defaultPillarId: number | null
   today: string
   onPillarCreated?: (pillar: PillarOption) => void
+  onPillarUpdated?: (pillar: PillarOption) => void
   onSaved: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -100,7 +102,7 @@ export function RecurringTaskDialog({
               placeholder="Task title"
               className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
             />
-            <PillarPicker pillars={pillars} value={pillarId} onChange={setPillarId} onPillarCreated={onPillarCreated} />
+            <PillarPicker pillars={pillars} value={pillarId} onChange={setPillarId} onPillarCreated={onPillarCreated} onPillarUpdated={onPillarUpdated} />
           </div>
 
           <div>

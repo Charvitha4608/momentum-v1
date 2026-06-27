@@ -59,7 +59,7 @@ export function TargetList({
   const [newPillarId, setNewPillarId] = useState<number | null>(pillars[0]?.id ?? null)
   const [newDuration, setNewDuration] = useState<number | null>(null)
   const [newTimeOfDay, setNewTimeOfDay] = useState<string | null>(null)
-  const [newQuantity, setNewQuantity] = useState(1)
+  const [newQuantity, setNewQuantity] = useState<number | "">(1)
   const [newEstimatedMinutes, setNewEstimatedMinutes] = useState<number | null>(null)
   const [newGoalId, setNewGoalId] = useState<number | null>(null)
   const [metaOpen, setMetaOpen] = useState(false)
@@ -109,7 +109,7 @@ export function TargetList({
     if (!title || newPillarId === null) return
     const pillar = pillarOptions.find((p) => p.id === newPillarId)
     if (!pillar) return
-    const quantity = newQuantity > 0 ? Math.round(newQuantity) : 1
+    const quantity = typeof newQuantity === "number" && newQuantity > 0 ? newQuantity : 1
     const targetDate = selectedDate
     const scheduledAhead = targetDate !== date
 
@@ -417,6 +417,7 @@ export function TargetList({
             pillars={pillarOptions}
             longTermGoals={longTermGoals}
             onPillarCreated={(pillar) => setPillarOptions((prev) => [...prev, pillar])}
+            onPillarUpdated={(pillar) => setPillarOptions((prev) => prev.map((p) => (p.id === pillar.id ? pillar : p)))}
             onSave={(next) => saveDetails(item.id, next)}
           />
         )}
@@ -547,6 +548,7 @@ export function TargetList({
             value={newPillarId}
             onChange={setNewPillarId}
             onPillarCreated={(pillar) => setPillarOptions((prev) => [...prev, pillar])}
+            onPillarUpdated={(pillar) => setPillarOptions((prev) => prev.map((p) => (p.id === pillar.id ? pillar : p)))}
           />
           <Popover open={metaOpen} onOpenChange={setMetaOpen}>
             <PopoverTrigger
@@ -590,7 +592,12 @@ export function TargetList({
                     min={1}
                     inputMode="numeric"
                     value={newQuantity}
-                    onChange={(e) => setNewQuantity(Math.max(1, Math.round(Number(e.target.value) || 1)))}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") return setNewQuantity("")
+                      const n = Math.round(Number(v))
+                      setNewQuantity(Number.isFinite(n) && n > 0 ? n : "")
+                    }}
                     className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
@@ -649,6 +656,7 @@ export function TargetList({
             defaultPillarId={newPillarId}
             today={date}
             onPillarCreated={(pillar) => setPillarOptions((prev) => [...prev, pillar])}
+            onPillarUpdated={(pillar) => setPillarOptions((prev) => prev.map((p) => (p.id === pillar.id ? pillar : p)))}
             onSaved={() => {
               startTransition(async () => {
                 const fresh = await getTodayTargets(date)

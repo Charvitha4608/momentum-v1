@@ -36,16 +36,20 @@ export function TargetDetailsEditor({
   pillars,
   longTermGoals,
   onPillarCreated,
+  onPillarUpdated,
   onSave,
 }: {
   value: TargetDetailsValue
   pillars: PillarOption[]
   longTermGoals: ActiveLongTermGoal[]
   onPillarCreated: (pillar: PillarOption) => void
+  onPillarUpdated?: (pillar: PillarOption) => void
   onSave: (next: TargetDetailsValue) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<TargetDetailsValue>(value)
+  // Quantity may be temporarily blank while editing; it's coerced back to a
+  // number on commit (see onOpenChange below), so callers always get a number.
+  const [draft, setDraft] = useState<Omit<TargetDetailsValue, "quantity"> & { quantity: number | "" }>(value)
 
   const goalsForPillar = longTermGoals.filter((g) => g.pillarId === draft.pillarId)
 
@@ -62,7 +66,7 @@ export function TargetDetailsEditor({
         // Opening: seed the draft from the latest value. Closing (click-away):
         // commit whatever's in the draft so edits aren't silently lost.
         if (next) setDraft(value)
-        else onSave(draft)
+        else onSave({ ...draft, quantity: typeof draft.quantity === "number" && draft.quantity > 0 ? draft.quantity : 1 })
         setOpen(next)
       }}
     >
@@ -93,6 +97,7 @@ export function TargetDetailsEditor({
               }))
             }
             onPillarCreated={onPillarCreated}
+            onPillarUpdated={onPillarUpdated}
           />
         </div>
 
@@ -122,7 +127,12 @@ export function TargetDetailsEditor({
               min={1}
               inputMode="numeric"
               value={draft.quantity}
-              onChange={(e) => setDraft((d) => ({ ...d, quantity: Math.max(1, Math.round(Number(e.target.value) || 1)) }))}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === "") return setDraft((d) => ({ ...d, quantity: "" }))
+                const n = Math.round(Number(v))
+                setDraft((d) => ({ ...d, quantity: Number.isFinite(n) && n > 0 ? n : "" }))
+              }}
               className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
             />
           </div>

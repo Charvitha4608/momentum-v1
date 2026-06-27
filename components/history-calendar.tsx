@@ -1,16 +1,18 @@
 "use client"
 
+import type React from "react"
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Check, ChevronLeft, ChevronRight, Clock, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Clock, Plus, X } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { cn } from "@/lib/utils"
 import { getTargetsForDate, type DateTarget, type DayStat } from "@/app/actions/history"
-import { toggleTarget } from "@/app/actions/targets"
+import { addTarget, toggleTarget } from "@/app/actions/targets"
 import { completionStatus, COMPLETION_META } from "@/lib/completion"
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
@@ -50,16 +52,23 @@ export function HistoryCalendar({
   month,
   days,
   today,
+  pillars,
 }: {
   year: number
   month: number
   days: DayStat[]
   today: string
+  pillars: PillarOption[]
 }) {
   const [selected, setSelected] = useState<{ date: string } | null>(null)
   const [dayTargets, setDayTargets] = useState<DateTarget[] | null>(null)
   const router = useRouter()
   const [, startToggle] = useTransition()
+
+  // Inline "plan a target" form inside the day-detail panel (today + future).
+  const [pillarOptions, setPillarOptions] = useState<PillarOption[]>(pillars)
+  const [newPillarId, setNewPillarId] = useState<number | null>(pillars[0]?.id ?? null)
+  const [newTitle, setNewTitle] = useState("")
 
   // Toggle a target from the day-detail panel (today or any future day). The
   // panel updates optimistically; router.refresh() then re-pulls the month so
@@ -92,7 +101,40 @@ export function HistoryCalendar({
   function openDay(date: string) {
     setSelected({ date })
     setDayTargets(null)
+    setNewTitle("")
     getTargetsForDate(date).then(setDayTargets)
+  }
+
+  // Plan a new target straight from the day-detail panel. Optimistically append
+  // it, persist for the viewed day, then re-pull that day (to swap in the real
+  // id needed for toggling) and refresh the month so the heatmap dot updates.
+  function handleAddTarget(e: React.FormEvent) {
+    e.preventDefault()
+    const title = newTitle.trim()
+    if (!title || newPillarId === null || !selected) return
+    const pillar = pillarOptions.find((p) => p.id === newPillarId)
+    if (!pillar) return
+    const targetDate = selected.date
+    const optimistic: DateTarget = {
+      id: -Date.now(),
+      title,
+      completed: false,
+      completedDate: null,
+      originalDate: targetDate,
+      points: 10,
+      pillarId: pillar.id,
+      pillarName: pillar.name,
+      pillarIcon: pillar.icon,
+      pillarColor: pillar.color,
+    }
+    setDayTargets((prev) => [...(prev ?? []), optimistic])
+    setNewTitle("")
+    startToggle(async () => {
+      await addTarget(title, pillar.id, targetDate)
+      const fresh = await getTargetsForDate(targetDate)
+      setDayTargets(fresh)
+      router.refresh()
+    })
   }
 
   const dayMap = new Map(days.map((d) => [d.date, d]))
@@ -217,64 +259,101 @@ export function HistoryCalendar({
 
               {dayTargets === null ? (
                 <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
-              ) : dayTargets.length === 0 ? (
-                <p className="mt-3 text-sm text-muted-foreground">No targets were set on this day.</p>
               ) : (
                 <>
-                  <ul className="mt-4 flex flex-col gap-2">
-                    {dayTargets.map((t) => {
-                      const status = completionStatus(t)
-                      const meta = status ? COMPLETION_META[status] : null
-                      const lateLabel =
-                        status === "late" && t.completedDate
-                          ? new Date(`${t.completedDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                          : null
-                      return (
-                        <li
-                          key={t.id}
-                          className="flex items-center gap-2.5 rounded-lg bg-surface-2 px-3 py-2.5"
-                        >
-                          {isEditable ? (
-                            // Today / future days are checkable straight from the panel.
-                            <Checkbox
-                              checked={t.completed}
-                              onCheckedChange={(checked) => toggleDayTarget(t, checked, selectedDate)}
-                              aria-label={t.completed ? `Mark "${t.title}" incomplete` : `Mark "${t.title}" complete`}
-                            />
-                          ) : status === "late" ? (
-                            // COLOR: completed-late marker uses amber to signal "done, but not on this day"
-                            <Clock className="size-4 shrink-0 text-amber-500" />
-                          ) : t.completed ? (
-                            <Check className={cn("size-4 shrink-0", meta?.textClass ?? "text-primary")} />
-                          ) : (
-                            <X className="size-4 shrink-0 text-muted-foreground" />
-                          )}
-                          <span className={cn("flex-1 text-sm", !t.completed && "text-muted-foreground")}>
-                            {t.title}
+                  {dayTargets.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {isEditable ? "Nothing planned yet." : "No targets were set on this day."}
+                    </p>
+                  ) : (
+                    <>
+                      <ul className="mt-4 flex flex-col gap-2">
+                        {dayTargets.map((t) => {
+                          const status = completionStatus(t)
+                          const meta = status ? COMPLETION_META[status] : null
+                          const lateLabel =
+                            status === "late" && t.completedDate
+                              ? new Date(`${t.completedDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                              : null
+                          return (
+                            <li
+                              key={t.id}
+                              className="flex items-center gap-2.5 rounded-lg bg-surface-2 px-3 py-2.5"
+                            >
+                              {isEditable ? (
+                                // Today / future days are checkable straight from the panel.
+                                <Checkbox
+                                  checked={t.completed}
+                                  onCheckedChange={(checked) => toggleDayTarget(t, checked, selectedDate)}
+                                  aria-label={t.completed ? `Mark "${t.title}" incomplete` : `Mark "${t.title}" complete`}
+                                />
+                              ) : status === "late" ? (
+                                // COLOR: completed-late marker uses amber to signal "done, but not on this day"
+                                <Clock className="size-4 shrink-0 text-amber-500" />
+                              ) : t.completed ? (
+                                <Check className={cn("size-4 shrink-0", meta?.textClass ?? "text-primary")} />
+                              ) : (
+                                <X className="size-4 shrink-0 text-muted-foreground" />
+                              )}
+                              <span className={cn("flex-1 text-sm", !t.completed && "text-muted-foreground")}>
+                                {t.title}
+                              </span>
+                              {meta && <span className={cn("shrink-0 text-xs font-medium", meta.textClass)}>{meta.label}</span>}
+                              {lateLabel && (
+                                <span className="shrink-0 text-xs text-muted-foreground">{lateLabel}</span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                      <div className="mt-3 flex items-center justify-between px-1 text-sm text-muted-foreground">
+                        {isFutureDay ? (
+                          <span>
+                            {completedCount}/{dayTargets.length} planned
                           </span>
-                          {meta && <span className={cn("shrink-0 text-xs font-medium", meta.textClass)}>{meta.label}</span>}
-                          {lateLabel && (
-                            <span className="shrink-0 text-xs text-muted-foreground">{lateLabel}</span>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                  <div className="mt-3 flex items-center justify-between px-1 text-sm text-muted-foreground">
-                    {isFutureDay ? (
-                      <span>
-                        {completedCount}/{dayTargets.length} planned
-                      </span>
-                    ) : (
-                      <span>
-                        {onTimeCount}/{dayTargets.length} on time{lateCount > 0 ? ` · ${lateCount} completed later` : ""}
-                      </span>
-                    )}
-                    {/* COLOR: points earned uses primary, matching the points stat elsewhere */}
-                    <span className="font-semibold text-primary">
-                      {pointsEarned} points{isFutureDay ? "" : " earned"}
-                    </span>
-                  </div>
+                        ) : (
+                          <span>
+                            {onTimeCount}/{dayTargets.length} on time{lateCount > 0 ? ` · ${lateCount} completed later` : ""}
+                          </span>
+                        )}
+                        {/* COLOR: points earned uses primary, matching the points stat elsewhere */}
+                        <span className="font-semibold text-primary">
+                          {pointsEarned} points{isFutureDay ? "" : " earned"}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Plan a target straight from this day (today + future only) */}
+                  {isEditable && (
+                    <form
+                      onSubmit={handleAddTarget}
+                      className="mt-4 flex items-center gap-2 border-t border-line pt-3"
+                    >
+                      <input
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder={isFutureDay ? "Plan a target…" : "Add a target…"}
+                        aria-label="Add a target for this day"
+                        className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+                      />
+                      <PillarPicker
+                        pillars={pillarOptions}
+                        value={newPillarId}
+                        onChange={setNewPillarId}
+                        onPillarCreated={(pillar) => setPillarOptions((prev) => [...prev, pillar])}
+                      />
+                      {/* COLOR: primary marks the "add" affordance, dimmed until valid */}
+                      <button
+                        type="submit"
+                        aria-label="Add target"
+                        disabled={!newTitle.trim() || newPillarId === null}
+                        className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                    </form>
+                  )}
                 </>
               )}
             </div>

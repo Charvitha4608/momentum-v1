@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { getMonthStats, getMonthPillarFullStats, getWeekTargets, getCurrentStreak } from "@/app/actions/history"
+import { getPillars } from "@/app/actions/pillars"
 import { HistoryCalendar } from "@/components/history-calendar"
 import { CalendarPillarsView } from "@/components/calendar-pillars-view"
 import { CalendarWeekView } from "@/components/calendar-week-view"
@@ -110,7 +111,7 @@ export default async function CalendarPage({
     )
   }
 
-  const days = await getMonthStats(year, month)
+  const [days, pillarOptions] = await Promise.all([getMonthStats(year, month), getPillars()])
   return (
     <AppShell active="/calendar" title="Calendar">
       <div className="mx-auto flex w-full max-w-sm flex-col gap-6 md:max-w-4xl">
@@ -118,7 +119,7 @@ export default async function CalendarPage({
           <CalendarViewSwitcher view={view} />
         </div>
         <div className="grid items-start gap-6 md:grid-cols-2">
-          <HistoryCalendar year={year} month={month} days={days} today={today} />
+          <HistoryCalendar year={year} month={month} days={days} today={today} pillars={pillarOptions} />
           <WeeklyScoreCard year={year} month={month} days={days} today={today} />
         </div>
       </div>

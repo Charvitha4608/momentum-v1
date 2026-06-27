@@ -7,10 +7,10 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // Every user gets a default "General" pillar so they can add targets
+        // Every user gets a default "Default" pillar so they can add targets
         // immediately, mirroring the backfill applied to existing users.
         after: async (createdUser) => {
-          await db.insert(pillars).values({ userId: createdUser.id, name: "General", icon: "🎯", color: "#959EC9", sortOrder: 0 })
+          await db.insert(pillars).values({ userId: createdUser.id, name: "Default", icon: "🎯", color: "#959EC9", sortOrder: 0 })
         },
       },
     },

@@ -47,7 +47,7 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
     <aside
       className={cn(
         // Translucent over the app canvas (design .side: rgba-white-.012 + --line border)
-        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-white/[0.012] transition-[width] duration-300 ease-in-out md:flex",
+        "hidden h-dvh shrink-0 flex-col border-r border-line bg-white/[0.012] transition-[width] duration-300 ease-in-out md:flex",
         collapsed ? "w-[68px]" : "w-56"
       )}
     >
