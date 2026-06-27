@@ -209,7 +209,7 @@ export function LoginCharacters({
       <motion.div
         ref={char1Ref}
         className="absolute bottom-0 left-[30px] rounded-t-2xl"
-        style={{ width: 130, backgroundColor: "#28264B", transformOrigin: "bottom center" }} // COLOR: Character1 fill — see globals.css --card
+        style={{ width: 130, backgroundColor: "#3d3f63", transformOrigin: "bottom center" }} // COLOR: Character1 fill — see globals.css --card
         animate={{ height: focused ? 290 : 270, ...bodyAnim(lean.c1) }}
         transition={BODY_SPRING}
       >
@@ -223,7 +223,7 @@ export function LoginCharacters({
       <motion.div
         ref={char2Ref}
         className="absolute bottom-0 left-[160px] rounded-t-2xl"
-        style={{ width: 105, height: 210, backgroundColor: "#4e5174", transformOrigin: "bottom center" }} // COLOR: Character2 fill — see globals.css --secondary
+        style={{ width: 105, height: 210, backgroundColor: "#8b8fc2", transformOrigin: "bottom center" }} // COLOR: Character2 fill — see globals.css --secondary
         animate={bodyAnim(lean.c2)}
         transition={BODY_SPRING}
       >
@@ -237,7 +237,7 @@ export function LoginCharacters({
       <motion.div
         ref={char3Ref}
         className="absolute bottom-0 left-0 rounded-t-[100px]"
-        style={{ width: 200, height: 130, backgroundColor: "#959ec9", transformOrigin: "bottom center" }} // COLOR: Character3 fill — see globals.css --primary
+        style={{ width: 200, height: 130, backgroundColor: "#b6b0ea", transformOrigin: "bottom center" }} // COLOR: Character3 fill — see globals.css --primary
         animate={bodyAnim(lean.c3)}
         transition={BODY_SPRING}
       >
@@ -251,7 +251,7 @@ export function LoginCharacters({
       <motion.div
         ref={char4Ref}
         className="absolute bottom-0 left-[250px] rounded-t-[60px]"
-        style={{ width: 130, height: 170, backgroundColor: "#e8eae7", transformOrigin: "bottom center" }} // COLOR: Character4 fill — see globals.css --foreground
+        style={{ width: 130, height: 170, backgroundColor: "#edeef4", transformOrigin: "bottom center" }} // COLOR: Character4 fill — see globals.css --foreground
         animate={bodyAnim(lean.c4)}
         transition={BODY_SPRING}
       >
