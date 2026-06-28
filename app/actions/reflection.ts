@@ -383,13 +383,14 @@ export type WeeklyReview = {
   bestDay: string | null
   mostActivePillar: { id: number; name: string; icon: string; color: string } | null
   leastActivePillar: { id: number; name: string; icon: string; color: string } | null
+  aiNarrative: string | null
 }
 
 /** All weekly reviews for the current user, most recent first. */
 export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
   const userId = await getUserId()
 
-  const [rows, pillarRows] = await Promise.all([
+  const [rows, pillarRows, effortRows, balanceScore] = await Promise.all([
     db
       .select({
         id: weeklyReviews.id,
@@ -401,14 +402,55 @@ export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
         bestDay: weeklyReviews.bestDay,
         mostActivePillarId: weeklyReviews.mostActivePillarId,
         leastActivePillarId: weeklyReviews.leastActivePillarId,
+        aiNarrative: weeklyReviews.aiNarrative,
       })
       .from(weeklyReviews)
       .where(eq(weeklyReviews.userId, userId))
       .orderBy(desc(weeklyReviews.weekStart)),
     db.select({ id: pillars.id, name: pillars.name, icon: pillars.icon, color: pillars.color }).from(pillars).where(eq(pillars.userId, userId)),
+    getEffortComparison().catch(() => [] as EffortComparisonRow[]),
+    getBalanceScore().catch(() => null),
   ])
 
   const pillarMap = new Map(pillarRows.map((p) => [p.id, p]))
+
+  // Lazily generate narrative for the most recent review that lacks one.
+  // We only do it for the first (most recent) missing row to avoid
+  // multiple API calls per page load; subsequent loads fill in the rest.
+  const missingNarrative = rows.find((r) => !r.aiNarrative)
+  if (missingNarrative) {
+    const { generateWeeklyNarrative } = await import("@/lib/ai/narrative")
+    const mostActivePillar = missingNarrative.mostActivePillarId != null ? pillarMap.get(missingNarrative.mostActivePillarId) ?? null : null
+    const leastActivePillar = missingNarrative.leastActivePillarId != null ? pillarMap.get(missingNarrative.leastActivePillarId) ?? null : null
+
+    const narrative = await generateWeeklyNarrative({
+      weekStart: missingNarrative.weekStart,
+      weekEnd: missingNarrative.weekEnd,
+      pointsEarned: missingNarrative.pointsEarned,
+      tasksCompleted: missingNarrative.tasksCompleted,
+      currentStreak: missingNarrative.currentStreak,
+      bestDay: missingNarrative.bestDay,
+      mostActivePillar: mostActivePillar ? { name: mostActivePillar.name, icon: mostActivePillar.icon } : null,
+      leastActivePillar: leastActivePillar ? { name: leastActivePillar.name, icon: leastActivePillar.icon } : null,
+      effort: effortRows.map((e) => ({
+        pillarName: e.pillarName,
+        desiredPercent: e.desiredPercent,
+        actualPercent: e.actualPercent,
+        percentOfTarget: e.percentOfTarget,
+      })),
+      balanceScore,
+      neglectedPillars: [], // neglected is a live query; omit from historical narrative
+    })
+
+    if (narrative) {
+      // Persist so we never call the API again for this week.
+      await db
+        .update(weeklyReviews)
+        .set({ aiNarrative: narrative })
+        .where(eq(weeklyReviews.id, missingNarrative.id))
+      missingNarrative.aiNarrative = narrative
+    }
+  }
 
   return rows.map((r) => ({
     id: r.id,
@@ -420,5 +462,6 @@ export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
     bestDay: r.bestDay,
     mostActivePillar: r.mostActivePillarId != null ? pillarMap.get(r.mostActivePillarId) ?? null : null,
     leastActivePillar: r.leastActivePillarId != null ? pillarMap.get(r.leastActivePillarId) ?? null : null,
+    aiNarrative: r.aiNarrative ?? null,
   }))
 }

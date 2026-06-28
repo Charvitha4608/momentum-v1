@@ -7,3 +7,8 @@ export const pool = new Pool({
 })
 
 export const db = drizzle(pool, { schema })
+
+// Exported so lib helpers that accept `db` as a parameter can type it correctly
+// without pulling in drizzle internals directly.
+export type DbType = typeof db
+

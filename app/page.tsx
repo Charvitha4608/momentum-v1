@@ -8,6 +8,7 @@ import { getActiveLongTermGoals } from "@/app/actions/goals"
 import { getLeaderboard } from "@/app/actions/friends"
 import { getTodayAvailability } from "@/app/actions/availability"
 import { checkAndUnlockAchievements } from "@/app/actions/achievements"
+import { getDashboardDigest } from "@/app/actions/digest"
 import { TargetList } from "@/components/target-list"
 import { StatCard } from "@/components/stat-card"
 import { TodayProgressCard } from "@/components/today-progress-card"
@@ -15,7 +16,7 @@ import { Leaderboard } from "@/components/leaderboard"
 import { BacklogCard } from "@/components/backlog-card"
 import { AvailabilityQuickEdit } from "@/components/availability-quick-edit"
 import { AppShell } from "@/components/app-shell"
-import { Sparkles } from "lucide-react"
+import { Sparkles, Zap } from "lucide-react"
 import { getToday } from "@/lib/date"
 
 export default async function HomePage() {
@@ -23,13 +24,14 @@ export default async function HomePage() {
   if (!session?.user) redirect("/sign-in")
 
   const today = await getToday()
-  const [targets, stats, leaderboard, pillars, availability, longTermGoals] = await Promise.all([
+  const [targets, stats, leaderboard, pillars, availability, longTermGoals, digest] = await Promise.all([
     getTodayTargets(today),
     getMyStats(),
     getLeaderboard(),
     getPillars(),
     getTodayAvailability(),
     getActiveLongTermGoals(),
+    getDashboardDigest(),
   ])
 
   // Carry-over already moved every unfinished past target's `date` to today,
@@ -40,6 +42,13 @@ export default async function HomePage() {
 
   return (
     <AppShell active="/" subtitle={`Hey ${session.user.name}, crush today's targets.`}>
+      {/* AI Daily Digest — ambient one-line briefing */}
+      {digest && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] text-muted-foreground">
+          <Zap className="size-3.5 shrink-0 text-primary" />
+          <span>{digest}</span>
+        </div>
+      )}
       <div className="grid min-w-0 gap-6 overflow-x-hidden lg:grid-cols-12">
         <div className="flex min-w-0 flex-col gap-4 lg:col-span-8">
           <div className="grid gap-4 sm:grid-cols-2">

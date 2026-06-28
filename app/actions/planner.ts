@@ -155,6 +155,11 @@ async function buildContext(userId: string, scope: "day" | "week", anchor: strin
     deadline: r.deadline,
     isRecurring: r.recurringTaskId != null,
     isBacklog: r.originalDate < today,
+    daysOverdue: (() => {
+      const [oy, om, od] = r.originalDate.split("-").map(Number)
+      const [ty, tm, td] = today.split("-").map(Number)
+      return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(oy, om - 1, od)) / 864e5)
+    })(),
   }))
 
   const [effortRows, neglected, preferenceNotes, dayHours] = await Promise.all([

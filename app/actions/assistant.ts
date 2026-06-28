@@ -6,6 +6,12 @@
 // action (planner.ts, recurring.ts) so the propose → preview → confirm → apply
 // flow and the ai_schedule_feedback learning loop stay in one place.
 
+import { and, eq, gte, sql } from "drizzle-orm"
+import { headers } from "next/headers"
+
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db"
+import { targets, pillars, longTermGoals } from "@/lib/db/schema"
 import { getPillars } from "@/app/actions/pillars"
 import { getToday } from "@/lib/date"
 import { getEffortComparison } from "@/app/actions/reflection"
@@ -22,6 +28,7 @@ import {
 import { getScheduleForRange, type ScheduleDay } from "@/app/actions/history"
 import {
   runAssistantAgent,
+  resumeWithRefinement,
   appendAnswer,
   type AssistantContext,
   type AssistantTurn,
@@ -29,19 +36,115 @@ import {
   type RecurringProposal,
   type GoalPlanProposal,
 } from "@/lib/assistant/agent"
+import { getPillarCompletionRate, computePacing } from "@/lib/ai/pacing"
 
 const RECURRING_POINTS = 10
 
+async function getUserId() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) throw new Error("Unauthorized")
+  return session.user.id
+}
+
 async function buildContext(): Promise<AssistantContext> {
-  const [today, pillars, effort] = await Promise.all([
+  const userId = await getUserId()
+  const [today, pillarList, effort] = await Promise.all([
     getToday(),
     getPillars(),
     getEffortComparison().catch(() => []),
   ])
+
+  // Open tasks for today (not yet completed)
+  const openRows = await db
+    .select({
+      title: targets.title,
+      pillarName: pillars.name,
+      originalDate: targets.originalDate,
+      deadline: targets.deadline,
+      durationMinutes: targets.durationMinutes,
+    })
+    .from(targets)
+    .innerJoin(pillars, eq(targets.pillarId, pillars.id))
+    .where(and(eq(targets.userId, userId), eq(targets.completed, false), eq(targets.date, today)))
+    .limit(20)
+
+  const openTasksToday = openRows.map((r) => {
+    const [oy, om, od] = r.originalDate.split("-").map(Number)
+    const [ty, tm, td] = today.split("-").map(Number)
+    const daysOverdue = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(oy, om - 1, od)) / 864e5)
+    return {
+      title: r.title,
+      pillarName: r.pillarName,
+      daysOverdue,
+      deadline: r.deadline,
+      durationMinutes: r.durationMinutes,
+    }
+  })
+
+  // Active long-term goals + pace
+  const activeGoals = await db
+    .select({
+      title: longTermGoals.title,
+      pillarName: pillars.name,
+      targetValue: longTermGoals.targetValue,
+      deadline: longTermGoals.deadline,
+      createdAt: longTermGoals.createdAt,
+    })
+    .from(longTermGoals)
+    .innerJoin(pillars, eq(longTermGoals.pillarId, pillars.id))
+    .where(and(eq(longTermGoals.userId, userId), eq(longTermGoals.completed, false)))
+    .limit(10)
+
+  // Compute progress for each long-term goal
+  const goalSummaries = await Promise.all(
+    activeGoals.map(async (g) => {
+      const created = g.createdAt.toISOString().slice(0, 10)
+      const [row] = await db
+        .select({ done: sql<number>`coalesce(sum(${targets.quantity}) filter (where ${targets.completed}), 0)` })
+        .from(targets)
+        .where(and(eq(targets.userId, userId), gte(targets.originalDate, created)))
+
+      const done = Number(row?.done ?? 0)
+      const progressPercent = Math.min(100, Math.round((done / Math.max(1, g.targetValue)) * 100))
+
+      const [dy, dm, dd] = g.deadline.split("-").map(Number)
+      const [ty, tm, td] = today.split("-").map(Number)
+      const daysUntilDeadline = Math.round((Date.UTC(dy, dm - 1, dd) - Date.UTC(ty, tm - 1, td)) / 864e5)
+
+      return { title: g.title, pillarName: g.pillarName, progressPercent, daysUntilDeadline }
+    })
+  )
+
+  // Neglected pillars (5+ days idle) — cheap read-only check
+  const activePillars = await db
+    .select({ id: pillars.id, name: pillars.name, createdAt: pillars.createdAt })
+    .from(pillars)
+    .where(and(eq(pillars.userId, userId), eq(pillars.archived, false)))
+
+  const lastActivityRows = await db
+    .select({ pillarId: targets.pillarId, lastDate: sql<string>`max(${targets.originalDate})` })
+    .from(targets)
+    .where(and(eq(targets.userId, userId), eq(targets.completed, true)))
+    .groupBy(targets.pillarId)
+  const lastMap = new Map(lastActivityRows.map((r) => [r.pillarId, r.lastDate]))
+
+  const neglectedPillars = activePillars
+    .map((p) => {
+      const lastDate = lastMap.get(p.id) ?? p.createdAt.toISOString().slice(0, 10)
+      const [ly, lm, ld] = lastDate.split("-").map(Number)
+      const [ty2, tm2, td2] = today.split("-").map(Number)
+      const days = Math.round((Date.UTC(ty2, tm2 - 1, td2) - Date.UTC(ly, lm - 1, ld)) / 864e5)
+      return { pillarName: p.name, daysSinceLastActivity: days }
+    })
+    .filter((n) => n.daysSinceLastActivity >= 5)
+
   return {
     today,
-    pillars: pillars.map((p) => ({ id: p.id, name: p.name })),
+    pillars: pillarList.map((p) => ({ id: p.id, name: p.name })),
     effort: effort.map((e) => ({ pillarName: e.pillarName, percentOfTarget: e.percentOfTarget })),
+    openTasksToday,
+    activeGoals: goalSummaries,
+    neglectedPillars,
   }
 }
 
@@ -50,8 +153,8 @@ async function buildContext(): Promise<AssistantContext> {
 export type AssistantResult =
   | { kind: "question"; question: ClarifyingQuestion; messages: unknown[]; source: "ai" | "heuristic" }
   | { kind: "breakdown"; goalText: string; items: ScheduleItem[]; source: "ai" | "heuristic" }
-  | { kind: "recurring"; proposal: RecurringProposal; pillarName: string | null; source: "ai" | "heuristic" }
-  | { kind: "goal_plan"; proposal: GoalPlanProposal; pillarName: string | null; source: "ai" | "heuristic" }
+  | { kind: "recurring"; proposal: RecurringProposal; pillarName: string | null; source: "ai" | "heuristic"; messages: unknown[] }
+  | { kind: "goal_plan"; proposal: GoalPlanProposal; pillarName: string | null; source: "ai" | "heuristic"; messages: unknown[] }
   | { kind: "plan_week"; sessionId: number; days: string[]; items: ScheduleItem[] }
   | { kind: "planner_question"; sessionId: number; question: ClarifyingQuestion }
   // Read-only answer to "what's planned for X?" — rendered directly, no confirm.
@@ -86,12 +189,12 @@ async function finishTurn(ctx: AssistantContext, turn: AssistantTurn): Promise<A
 
   if (proposal.kind === "goal_plan") {
     const pillarName = ctx.pillars.find((p) => p.id === proposal.pillarId)?.name ?? null
-    return { kind: "goal_plan", proposal, pillarName, source: turn.source }
+    return { kind: "goal_plan", proposal, pillarName, source: turn.source, messages: turn.messages }
   }
 
   // recurring
   const pillarName = ctx.pillars.find((p) => p.id === proposal.pillarId)?.name ?? null
-  return { kind: "recurring", proposal, pillarName, source: turn.source }
+  return { kind: "recurring", proposal, pillarName, source: turn.source, messages: turn.messages }
 }
 
 /** Map the planner's own result into the command bar's shape. */
@@ -169,6 +272,7 @@ export async function rejectRecurringProposal(proposal: RecurringProposal): Prom
  * a recurring task that generates ~perSession units each occurrence and stops
  * at the deadline. The recurring task carries `quantity` + `longTermGoalId`, so
  * each completed session auto-advances the goal toward its target.
+ * Uses the user's historical pillar completion rate to set a realistic perSession.
  */
 export async function confirmGoalPlan(proposal: GoalPlanProposal): Promise<{ ok: boolean; error?: string }> {
   if (proposal.pillarId == null) return { ok: false, error: "Pick a pillar first." }
@@ -180,18 +284,28 @@ export async function confirmGoalPlan(proposal: GoalPlanProposal): Promise<{ ok:
     return { ok: false, error: "Pick at least one day of the week." }
   }
 
+  const userId = await getUserId()
+
+  // Use real historical completion rate to compute a realistic per-session value.
+  const completionRate = await getPillarCompletionRate(db, userId, proposal.pillarId)
+  const pacing = computePacing({
+    targetValue: proposal.targetValue,
+    occurrences: proposal.occurrences,
+    pillarCompletionRate: completionRate,
+  })
+
   const goal = await createLongTermGoal(goalTitle, proposal.pillarId, proposal.targetValue, proposal.deadline)
   if (!goal) return { ok: false, error: "Couldn't create the goal." }
 
   const sessionTitle = proposal.unit
-    ? `${goalTitle}: ${proposal.perSession} ${proposal.unit}`
-    : `${goalTitle} (${proposal.perSession}/session)`
+    ? `${goalTitle}: ${pacing.perSession} ${proposal.unit}`
+    : `${goalTitle} (${pacing.perSession}/session)`
   await createRecurringTask(sessionTitle, proposal.pillarId, RECURRING_POINTS, proposal.frequency, {
     daysOfWeek: proposal.frequency === "weekly" ? proposal.daysOfWeek : undefined,
     endDate: proposal.deadline,
     durationMinutes: proposal.durationMinutes,
     preferredTimeOfDay: proposal.preferredTimeOfDay,
-    quantity: proposal.perSession,
+    quantity: pacing.perSession,
     longTermGoalId: goal.id,
   })
   await logProposalFeedback("accept", proposal.pillarId)
@@ -201,4 +315,22 @@ export async function confirmGoalPlan(proposal: GoalPlanProposal): Promise<{ ok:
 /** Record a rejected goal plan in the learning loop. */
 export async function rejectGoalPlan(proposal: GoalPlanProposal): Promise<void> {
   await logProposalFeedback("reject", proposal.pillarId)
+}
+
+// --- Multi-turn refinement: user rejects and types a correction --------------
+
+/**
+ * Resume after the user rejected a proposal and typed a correction
+ * (e.g. "actually make it daily, not weekly").  The prior conversation
+ * transcript is passed back so the model can revise in context.
+ */
+export async function refineAssistant(
+  priorMessages: unknown[],
+  correction: string
+): Promise<AssistantResult> {
+  const trimmed = correction.trim()
+  if (!trimmed) return { kind: "empty", message: "Type a correction to refine the proposal." }
+  const ctx = await buildContext()
+  const turn = await resumeWithRefinement(ctx, priorMessages, trimmed)
+  return finishTurn(ctx, turn)
 }

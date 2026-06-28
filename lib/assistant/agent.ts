@@ -29,11 +29,32 @@ export type { ClarifyingQuestion, ClarifyOption }
 
 export type AssistantPillar = { id: number; name: string }
 
+export type AssistantOpenTask = {
+  title: string
+  pillarName: string
+  daysOverdue: number   // 0 = due today, >0 = overdue, <0 = future
+  deadline: string | null
+  durationMinutes: number | null
+}
+
+export type AssistantGoalSummary = {
+  title: string
+  pillarName: string
+  progressPercent: number   // 0-100
+  daysUntilDeadline: number // negative means past due
+}
+
 export type AssistantContext = {
   today: string
   pillars: AssistantPillar[]
   // Light balance hint so a goal breakdown can lean toward under-served pillars.
   effort: { pillarName: string; percentOfTarget: number }[]
+  // Open tasks already on the user's plate today (so the AI doesn't double-book).
+  openTasksToday: AssistantOpenTask[]
+  // Active long-term goals + their pace — used by plan_goal proposals.
+  activeGoals: AssistantGoalSummary[]
+  // Pillars with 5+ days of no activity.
+  neglectedPillars: { pillarName: string; daysSinceLastActivity: number }[]
 }
 
 export type RecurringFrequency = "daily" | "weekly" | "custom"
@@ -234,9 +255,42 @@ function contextMessage(ctx: AssistantContext): string {
     .filter((e) => e.percentOfTarget < 100)
     .map((e) => e.pillarName)
     .join(", ")
+
+  const openTaskLines =
+    ctx.openTasksToday.length > 0
+      ? ctx.openTasksToday
+          .map((t) => {
+            const overdue = t.daysOverdue > 0 ? ` [${t.daysOverdue}d overdue]` : ""
+            const dur = t.durationMinutes ? ` (~${t.durationMinutes}min)` : ""
+            return `  - ${t.title} (${t.pillarName})${dur}${overdue}`
+          })
+          .join("\n")
+      : "  (none)"
+
+  const goalLines =
+    ctx.activeGoals.length > 0
+      ? ctx.activeGoals
+          .map((g) => `  - ${g.title}: ${g.progressPercent}% done, ${g.daysUntilDeadline}d left`)
+          .join("\n")
+      : "  (none)"
+
+  const neglectLines =
+    ctx.neglectedPillars.length > 0
+      ? ctx.neglectedPillars.map((n) => `  - ${n.pillarName}: ${n.daysSinceLastActivity}d idle`).join("\n")
+      : "  (none)"
+
   return `Today is ${ctx.today}.
 Pillars (id: name): ${pillars || "(none yet)"}.
-${underserved ? `Pillars currently under their target effort: ${underserved}.` : ""}`
+${underserved ? `Pillars under their target effort: ${underserved}.` : ""}
+
+Open tasks already on the user's plate today:
+${openTaskLines}
+
+Active long-term goals:
+${goalLines}
+
+Neglected pillars (5+ days no activity):
+${neglectLines}`
 }
 
 type GeminiPart =
@@ -331,6 +385,28 @@ export async function runAssistantAgent(
   } catch {
     return heuristicTurn(ctx, userInput)
   }
+}
+
+/**
+ * Resume after the user REJECTED a proposal and typed a correction
+ * (e.g. "actually make it daily, not weekly").  Appends the user's
+ * correction as a plain user message and re-runs the loop so the model
+ * can revise its proposal without the user retyping the original command.
+ */
+export async function resumeWithRefinement(
+  ctx: AssistantContext,
+  priorMessages: unknown[],
+  correction: string
+): Promise<AssistantTurn> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return heuristicTurn(ctx, correction)
+
+  const messages = [
+    ...(priorMessages as GeminiContent[]),
+    { role: "user" as const, parts: [{ text: `The user rejected that proposal and wants a change: ${correction}. Please revise your proposal.` }] },
+  ]
+
+  return runAssistantAgent(ctx, correction, messages)
 }
 
 /** Validate the model's date range, defaulting to today and ordering start ≤ end. */

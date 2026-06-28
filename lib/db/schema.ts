@@ -261,6 +261,8 @@ export const weeklyReviews = pgTable(
     leastActivePillarId: integer("leastActivePillarId").references(() => pillars.id, { onDelete: "set null" }),
     currentStreak: integer("currentStreak").notNull().default(0),
     bestDay: text("bestDay"), // YYYY-MM-DD
+    // AI-generated narrative paragraph for the Reflection page (cached per review).
+    aiNarrative: text("aiNarrative"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (table) => [unique("weekly_reviews_user_week_unique").on(table.userId, table.weekStart)]

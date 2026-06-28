@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronUp, History } from "lucide-react"
+import { ChevronDown, ChevronUp, History, Sparkles } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import type { WeeklyReview } from "@/app/actions/reflection"
@@ -49,30 +49,41 @@ export function WeeklyReviewList({ reviews }: { reviews: WeeklyReview[] }) {
                     </span>
                   </button>
                   {isOpen && (
-                    <div className="grid grid-cols-2 gap-3 border-t border-border px-3 py-3 text-sm sm:grid-cols-3">
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Points earned</span>
-                        {r.pointsEarned}
-                      </div>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Tasks completed</span>
-                        {r.tasksCompleted}
-                      </div>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Streak</span>
-                        {r.currentStreak} days
-                      </div>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Best day</span>
-                        {formatBestDay(r.bestDay)}
-                      </div>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Most active</span>
-                        {r.mostActivePillar ? `${r.mostActivePillar.icon} ${r.mostActivePillar.name}` : "—"}
-                      </div>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Least active</span>
-                        {r.leastActivePillar ? `${r.leastActivePillar.icon} ${r.leastActivePillar.name}` : "—"}
+                    <div className="border-t border-border px-3 pb-3 pt-2">
+                      {/* AI Narrative */}
+                      {r.aiNarrative && (
+                        <div className="mb-3 flex gap-2 rounded-md bg-surface-2 px-3 py-2.5">
+                          <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                          <p className="text-[13px] leading-relaxed text-muted-foreground">{r.aiNarrative}</p>
+                        </div>
+                      )}
+
+                      {/* Stats grid */}
+                      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Points earned</span>
+                          {r.pointsEarned}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Tasks completed</span>
+                          {r.tasksCompleted}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Streak</span>
+                          {r.currentStreak} days
+                        </div>
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Best day</span>
+                          {formatBestDay(r.bestDay)}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Most active</span>
+                          {r.mostActivePillar ? `${r.mostActivePillar.icon} ${r.mostActivePillar.name}` : "—"}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Least active</span>
+                          {r.leastActivePillar ? `${r.leastActivePillar.icon} ${r.leastActivePillar.name}` : "—"}
+                        </div>
                       </div>
                     </div>
                   )}

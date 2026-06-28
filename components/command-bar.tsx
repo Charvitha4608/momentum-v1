@@ -13,6 +13,7 @@ import {
   rejectRecurringProposal,
   confirmGoalPlan,
   rejectGoalPlan,
+  refineAssistant,
   type AssistantResult,
 } from "@/app/actions/assistant"
 import {
@@ -69,18 +70,60 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
   const [result, setResult] = useState<AssistantResult | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [busy, startTransition] = useTransition()
+  // Refinement: shown after a proposal is rejected, captures a one-liner correction.
+  const [refineInput, setRefineInput] = useState("")
+  const [priorMessages, setPriorMessages] = useState<unknown[] | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const refineRef = useRef<HTMLInputElement>(null)
 
   const reset = useCallback(() => {
     setInput("")
     setResult(null)
     setStatus(null)
+    setRefineInput("")
+    setPriorMessages(null)
   }, [])
 
   const close = useCallback(() => {
     setOpen(false)
     reset()
   }, [reset])
+
+  // Capture messages from result for refinement use
+  function getMessages(r: AssistantResult | null): unknown[] {
+    if (!r) return []
+    if ("messages" in r) return (r as { messages: unknown[] }).messages ?? []
+    return []
+  }
+
+  function onApplied(message: string) {
+    setResult(null)
+    setStatus(message)
+    setRefineInput("")
+    setPriorMessages(null)
+    router.refresh()
+  }
+
+  // Called when a proposal is dismissed — store messages so user can refine.
+  function onRejected(messages: unknown[]) {
+    setPriorMessages(messages)
+    setResult(null)
+    setStatus("Proposal dismissed — type a correction below to try again.")
+    setTimeout(() => refineRef.current?.focus(), 50)
+  }
+
+  function submitRefine(e: React.FormEvent) {
+    e.preventDefault()
+    const correction = refineInput.trim()
+    if (!correction || !priorMessages || busy) return
+    startTransition(async () => {
+      const r = await refineAssistant(priorMessages, correction)
+      setRefineInput("")
+      setPriorMessages(null)
+      setStatus(null)
+      setResult(r)
+    })
+  }
 
   // Global ⌘K / Ctrl+K toggle, Esc to close. A custom event lets visible
   // launchers (sidebar / mobile header) open the bar without lifting state.
@@ -128,12 +171,6 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
         setResult(await answerPlannerQuestion(result.sessionId, value, label))
       }
     })
-  }
-
-  function onApplied(message: string) {
-    setResult(null)
-    setStatus(message)
-    router.refresh()
   }
 
   return (
@@ -204,8 +241,30 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
               )}
 
               {status && (
-                <div className="flex items-center gap-2 p-2 text-sm text-foreground">
-                  <Check className="size-4 text-primary" /> {status}
+                <div className="flex flex-col gap-2 p-2">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Check className="size-4 text-primary" /> {status}
+                  </div>
+                  {/* Refinement input: visible after a rejection so user can correct in-context */}
+                  {priorMessages && (
+                    <form onSubmit={submitRefine} className="flex gap-2">
+                      <input
+                        ref={refineRef}
+                        value={refineInput}
+                        onChange={(e) => setRefineInput(e.target.value)}
+                        placeholder="Refine: e.g. make it daily instead..."
+                        className="flex-1 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        disabled={busy}
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !refineInput.trim()}
+                        className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-40"
+                      >
+                        {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Retry"}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 
@@ -236,11 +295,11 @@ export function CommandBar({ pillars }: { pillars: PillarOption[] }) {
               )}
 
               {result?.kind === "recurring" && (
-                <RecurringPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} />
+                <RecurringPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} onRejected={onRejected} messages={"messages" in result ? result.messages : []} />
               )}
 
               {result?.kind === "goal_plan" && (
-                <GoalPlanPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} />
+                <GoalPlanPreview proposal={result.proposal} pillars={pillars} onApplied={onApplied} onRejected={onRejected} messages={"messages" in result ? result.messages : []} />
               )}
 
               {result?.kind === "schedule" && (
@@ -500,10 +559,14 @@ function RecurringPreview({
   proposal,
   pillars,
   onApplied,
+  onRejected,
+  messages,
 }: {
   proposal: RecurringProposal
   pillars: PillarOption[]
   onApplied: (message: string) => void
+  onRejected?: (messages: unknown[]) => void
+  messages?: unknown[]
 }) {
   const [draft, setDraft] = useState<RecurringProposal>(proposal)
   const [error, setError] = useState<string | null>(null)
@@ -520,7 +583,7 @@ function RecurringPreview({
     setError(null)
     startTransition(async () => {
       const res = await confirmRecurringProposal(draft)
-      if (res.ok) onApplied(`Recurring task “${draft.title}” created.`)
+      if (res.ok) onApplied(`Recurring task "${draft.title}" created.`)
       else setError(res.error ?? "Couldn't create the task.")
     })
   }
@@ -528,7 +591,11 @@ function RecurringPreview({
   function reject() {
     startTransition(async () => {
       await rejectRecurringProposal(draft)
-      onApplied("Dismissed the proposal.")
+      if (onRejected && messages?.length) {
+        onRejected(messages)
+      } else {
+        onApplied("Dismissed the proposal.")
+      }
     })
   }
 
@@ -727,10 +794,14 @@ function GoalPlanPreview({
   proposal,
   pillars,
   onApplied,
+  onRejected,
+  messages,
 }: {
   proposal: GoalPlanProposal
   pillars: PillarOption[]
   onApplied: (message: string) => void
+  onRejected?: (messages: unknown[]) => void
+  messages?: unknown[]
 }) {
   const [draft, setDraft] = useState<GoalPlanProposal>(proposal)
   const [error, setError] = useState<string | null>(null)
@@ -740,7 +811,7 @@ function GoalPlanPreview({
     setError(null)
     startTransition(async () => {
       const res = await confirmGoalPlan(draft)
-      if (res.ok) onApplied(`Goal “${draft.goalTitle}” set up — ${draft.perSession}${draft.unit ? ` ${draft.unit}` : ""} per session.`)
+      if (res.ok) onApplied(`Goal "${draft.goalTitle}" set up — ${draft.perSession}${draft.unit ? ` ${draft.unit}` : ""} per session.`)
       else setError(res.error ?? "Couldn't set up the goal.")
     })
   }
@@ -748,7 +819,11 @@ function GoalPlanPreview({
   function reject() {
     startTransition(async () => {
       await rejectGoalPlan(draft)
-      onApplied("Dismissed the proposal.")
+      if (onRejected && messages?.length) {
+        onRejected(messages)
+      } else {
+        onApplied("Dismissed the proposal.")
+      }
     })
   }
 

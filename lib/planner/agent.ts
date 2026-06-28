@@ -28,6 +28,9 @@ export type CandidateTask = {
   deadline: string | null
   isRecurring: boolean
   isBacklog: boolean
+  // How many days this task is overdue (positive = past due, 0 = due today, negative = future).
+  // Used by the model to distinguish a 3-week-old backlog item from one added yesterday.
+  daysOverdue: number
 }
 
 export type EffortSignal = {
@@ -319,6 +322,8 @@ export function heuristicPlan(ctx: PlanningContext): PlanDecision[] {
     let priority = 5
     if (c.deadline) priority += 3
     if (c.isBacklog) priority += 2
+    // Boost overdue items proportionally — 7+ days overdue maxes out the boost.
+    if (c.daysOverdue > 0) priority += Math.min(3, Math.floor(c.daysOverdue / 2))
     const eff = c.pillarName ? effortByPillar.get(c.pillarName) : undefined
     if (eff && eff.percentOfTarget < 100) priority += 2
     if (eff && eff.percentOfTarget > 130) priority -= 2
@@ -348,6 +353,7 @@ export function heuristicPlan(ctx: PlanningContext): PlanDecision[] {
     const neglect = c.pillarName ? neglectByPillar.get(c.pillarName) : undefined
     const reasons: string[] = []
     if (c.deadline) reasons.push(`deadline ${c.deadline}`)
+    if (c.daysOverdue > 0) reasons.push(`${c.daysOverdue}d overdue`)
     if (neglect) reasons.push(`${c.pillarName} neglected ${neglect}d`)
     else if (eff && eff.percentOfTarget < 100) reasons.push(`${c.pillarName} under target`)
     if (c.isBacklog) reasons.push("carried over")
