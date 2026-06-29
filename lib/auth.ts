@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth"
 import { pool, db } from "@/lib/db"
 import { pillars } from "@/lib/db/schema"
+import { sendEmail } from "@/lib/email"
 
 export const auth = betterAuth({
   database: pool,
@@ -25,12 +26,25 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
-    // "Forgot password" flow: Better Auth generates the reset token and
-    // calls this with the reset URL. Wire up a real transactional email
-    // provider (Resend, Postmark, SMTP, etc.) here for production - for now
-    // the link is logged so the end-to-end flow is testable in development.
+    // "Forgot password" flow: Better Auth generates the reset token and calls
+    // this with the reset URL. The link is logged for dev visibility, then sent
+    // via Resend (lib/email.ts). sendEmail is a no-op without RESEND_API_KEY, so
+    // the flow stays testable locally off the logged link alone.
     sendResetPassword: async ({ user, url }) => {
       console.log(`[auth] Password reset link for ${user.email}: ${url}`)
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Reset your Momentum password",
+          html: `<p>We received a request to reset your Momentum password.</p>
+<p><a href="${url}">Click here to set a new password</a></p>
+<p>If you didn't request this, you can safely ignore this email.</p>`,
+        })
+      } catch (err) {
+        // A delivery failure must not crash the reset request — the user still
+        // gets a generic "if an account exists, a link is on its way" response.
+        console.error("[auth] Failed to send password reset email:", err)
+      }
     },
   },
   trustedOrigins: [
