@@ -2,7 +2,10 @@
    Tokens are local to this component (they intentionally differ from the
    app-wide theme in globals.css) and never leak out — CSS Modules scope the
    class names, and the custom properties live on .root only. */
-.root {
+/* Shared local palette. Lives on its own class so both the two-panel layout
+   (.root) and the single-card layout (.solo) inherit the same tokens via
+   `composes` rather than duplicating the values. */
+.authTokens {
   --bg: #0a0b11;
   --panel: #0d0e16;
   --surface: #14151f;
@@ -18,11 +21,39 @@
   --coral: #ff6f5e;
   --radius: 14px;
   --radius-lg: 20px;
+}
 
+.root {
+  composes: authTokens;
   display: grid;
   grid-template-columns: 1fr;
   min-height: 100dvh;
   background: var(--bg);
+  color: var(--text);
+}
+
+/* Single-card layout for the forgot/reset utility pages — same dark canvas and
+   card chrome as sign-in, just one centered card with no brand panel. */
+.solo {
+  composes: authTokens;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 40px 20px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Brand mark inside the solo card. Unlike .cardLogo it stays visible at all
+   widths, since these pages never show the brand panel. */
+.soloLogo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -382,6 +413,38 @@
 .link:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Link with a leading icon (e.g. "← Back to sign in"). */
+.backLink {
+  composes: link;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Info / confirmation panel — "reset link sent", "link expired", "password
+   reset". A quiet surface box that sits where the form would. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.noticeText {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.noticeMuted {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .error {
