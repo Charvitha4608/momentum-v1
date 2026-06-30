@@ -1,6 +1,23 @@
 # How Momentum Works
 
-Momentum is a personal-growth app for people who want to make steady progress on the things that matter to them. You organize your life into a handful of focus areas, set small daily goals inside each one, check them off as you go, and watch your consistency build over time. This document explains every part of the app in plain language so you can get the most out of it.
+Momentum is a personal-growth app for people who want to make steady progress on the things that matter to them. You organize your life into a handful of focus areas, set small daily goals inside each one, check them off as you go, and watch your consistency build over time. You can also reflect on past weeks, set longer-term goals, and keep each other accountable with friends. This document explains every part of the app in plain language so you can get the most out of it.
+
+## Accounts and signing in
+
+To use Momentum you create an account with your **name, email, and a password** (passwords must be at least 8 characters). As soon as you sign up you're signed straight in — there's no separate confirmation step to get started. The moment your account is created, you also get a starter focus area called "Default" so you can begin adding tasks right away.
+
+When you come back, you sign in with your email and password. The sign-in screen has a **"Remember me for 30 days"** option, which is on by default:
+
+- **Left on**, your session sticks around for up to 30 days, so you stay signed in even after closing the browser.
+- **Turned off**, you're signed in only for the current browser session — closing the browser signs you out.
+
+You can **sign out** at any time from within the app.
+
+### Forgot or resetting your password
+
+If you can't remember your password, use the **"Forgot password?"** link on the sign-in screen. You enter your email, and the app tells you that *if* an account exists for that address, a reset link is on its way — so check your inbox (and your spam folder). For privacy, it gives the same message whether or not an account actually exists at that email.
+
+The reset link is emailed to you. Clicking it takes you to a page where you choose a new password (again, at least 8 characters). Once you've set it, you're sent back to the sign-in screen to log in with your new password. Reset links can expire, so if a link no longer works, just request a fresh one.
 
 ## Pillars (your focus areas)
 
@@ -13,17 +30,21 @@ You can:
 - **Create** as many pillars as you like.
 - **Edit** a pillar's name, icon, or color at any time.
 - **Reorder** your pillars to control the order they appear in.
-- **Archive** a pillar you're no longer actively working on. Archiving hides the pillar from the menus where you'd pick it for a new task, but it does **not** delete anything — all the history and past tasks for that pillar stay intact. You can bring an archived pillar back at any time.
+- **Archive** a pillar you're no longer actively working on.
+
+**Archiving is how you retire a pillar — there's no permanent "delete" for pillars, and that's on purpose.** Archiving hides the pillar from the menus where you'd pick it for a new task, but it does **not** remove anything: every past task, every point earned, and all the history for that pillar stay completely intact and keep counting toward your totals. You can un-archive a pillar to bring it back into your active list at any time. (Individual *tasks* can be deleted outright — but a whole pillar is only ever archived, never erased.)
 
 ## Targets (your daily tasks)
 
 A **target** is a single task or checklist item for a given day — one checkbox to tick off, like "Solve 3 problems" or "Run 5 km". Targets are where the day-to-day action happens.
 
-To create a target, you give it a title and pick which pillar it belongs to. By default a new target is worth **10 points** (more on points below). When you finish it, you simply check it off.
+To create a target, you give it a title and pick which pillar it belongs to. When you finish it, you simply check it off.
+
+Every target is worth **10 points**, and that value is fixed — the app doesn't offer a way to make one task worth more or fewer points than another. Consistency is rewarded by *how many* tasks you finish and how steadily, not by hand-tuning point values.
 
 When you create or edit a target you can optionally add a few extra details:
 
-- **Quantity** — how many "units of work" the task represents (for example, "5 problems" or "10 pages"). If you don't set it, it counts as 1. The quantity matters mostly when the task is tied to a longer-term goal, because it's the amount that goal advances by when you finish the task.
+- **Quantity** — how many "units of work" the task represents (for example, "5 problems" or "10 pages"). If you don't set it, it counts as 1. The quantity matters mostly when the task is tied to a long-term goal, because it's the amount that goal advances by when you finish the task.
 - **Estimated time** — your up-front guess at how long the task will take.
 - **Time actually spent** — when you check a task off, you can record how many minutes it actually took. If you later un-check it, that recorded time is cleared so you can enter a fresh value next time.
 - **A pillar** — you can move a task to a different pillar after creating it.
@@ -66,7 +87,7 @@ When you create one, you choose how often it repeats:
 
 You can also give a recurring task an **end date**, after which it stops generating new copies — useful when the habit is only meant to last until a certain deadline. A recurring task starts producing tasks from its start date, and you can turn one off at any time, which stops future copies without touching the ones already created.
 
-Each generated copy inherits the template's settings — its points, its quantity, its rough time estimate and preferred time of day, and any long-term goal it's linked to — so every repeat behaves consistently. The app won't create a duplicate for a day that already has that recurring task's copy.
+Each generated copy inherits the template's settings — it's worth the standard 10 points, and carries the template's quantity, its rough time estimate and preferred time of day, and any long-term goal it's linked to — so every repeat behaves consistently. The app won't create a duplicate for a day that already has that recurring task's copy.
 
 ## Ahead, on-time, and late (when you finished, not just whether)
 
@@ -109,14 +130,68 @@ There's a natural pairing here: a long-term goal works hand-in-hand with a recur
 
 Separately from long-term goals, you can set a **monthly effort goal** for a pillar — a target for how much you want to invest in that pillar over the current calendar month. You can measure it either as a number of **points** earned or as a number of **completed sessions** (finished tasks) in that pillar. The app fills in your actual progress against the target as the month goes on. You can have one active monthly goal per pillar at a time, so progress is never ambiguous.
 
+### Monthly pillar goal vs. long-term goal — what's the difference?
+
+These two sound similar but do different jobs:
+
+- A **monthly pillar goal** is an ongoing effort target for a *whole pillar*, measured over a *calendar month* (points or completed sessions). It's about keeping a steady level of activity in an area, and it naturally renews each month.
+- A **long-term goal** is one specific objective with its *own deadline* and a *target quantity* (like "read 12 books by December"), tracked by the quantities of the individual tasks you link to it. It's about finishing a particular thing by a particular date, however long that takes.
+
+In short: monthly pillar goals keep an area healthy month to month; long-term goals drive a single big achievement to completion.
+
 ## Points, daily score, and streaks
 
 A few numbers track your momentum:
 
-- **Points** — each task is worth points (10 by default), earned when you complete it. Your total points are the sum across every task you've ever finished.
+- **Points** — each task is worth 10 points, earned when you complete it. Your total points are the sum across every task you've ever finished.
 - **Daily score** — a 0-to-10 rating of a day, based on the points you earned that day relative to how many tasks you'd planned.
 - **Completion percentage** — simply how many of a day's tasks you finished, out of how many you planned.
 - **Streak** — how many days in a row you've completed *all* of a day's tasks. The app also remembers your best-ever streak.
+
+## Weekly reflection and reviews
+
+The **Reflection** area is where you step back and look at the bigger picture instead of the day-to-day checklist. It pulls together a few things:
+
+- **Weekly reviews.** Once a Sunday-to-Saturday week has finished, Momentum automatically creates a frozen summary of it. Each review captures that week's total points, how many tasks you completed, your most-active and least-active pillars, your streak at the end of the week, and your single best day. It also includes a short, friendly written recap of how the week went. Reviews are listed most-recent-first, so you can scroll back through your history (up to about a year's worth) and see how you've been trending. They're there to read and reflect on — you don't edit them.
+- **Effort balance.** If you've set monthly pillar goals, Reflection compares how you *wanted* to split your effort across pillars against how you *actually* did this month, and sums it up as a single balance score — a quick read on whether your time is going where you intended.
+- **Pillar breakdowns.** You can see how this week's and this month's points are divided across your pillars, including which pillars you've leaned into most and least.
+- **Neglected pillars.** Reflection flags any active pillar you haven't completed a task in for 5 or more days, so nothing important quietly falls off your radar.
+
+## Friends and the leaderboard
+
+Momentum lets you stay accountable with friends.
+
+- **Adding a friend.** You invite someone by their email address. They have to already have a Momentum account at that email — you'll be told if no one's found, if you've already sent them a request, or if they've already sent you one. You can't friend yourself.
+- **Accepting or declining.** The person you invite gets a notification and can accept or decline it (either from the notification itself or on their Friends page). When they accept, you're notified that they did. You can also cancel a request you sent before it's answered, and either person can remove an existing friendship later (after which a fresh request can always be sent again).
+- **Seeing a friend's progress.** Once you're connected, you can view a friend's profile — their emoji and name, lifetime points, current and longest streak, points this week, their top pillars, any badges they've earned, and today's tasks and progress. For privacy, you can only see a friend's *today* in detail; their day-by-day history beyond today isn't exposed.
+
+### The leaderboard
+
+The leaderboard ranks **you and your accepted friends** against each other. There are two views:
+
+- **All-time:** ranked by total points (every point you've ever earned from completed tasks), with your streak as the tie-breaker.
+- **This week:** ranked by the points you've earned in the current Sunday-to-Saturday week, with the number of tasks completed this week as the tie-breaker.
+
+If you pass a friend's all-time point total by completing a task, that friend gets a friendly "you've been overtaken" notification — a little nudge to keep the friendly competition going.
+
+## Notifications
+
+Momentum keeps you posted through a **notification bell** in the app. A badge on the bell shows how many unread notifications you have; opening the list lets you read them, and you can mark a single one read or clear them all at once. Your notifications stick around so you can scroll back through them.
+
+You'll get a notification when:
+
+- **Someone sends you a friend request** — and you can accept or decline it right from the notification.
+- **Someone accepts your friend request.**
+- **You complete every task for the day** — a little celebration when you clear your whole list.
+- **You overtake a friend on the leaderboard** (and, on the other side, when a friend overtakes you).
+- **A long-term goal's deadline is approaching** — a heads-up at 7 days, 3 days, and 1 day left, each sent once, while the goal is still unfinished.
+- **A pillar has gone quiet** — if you haven't completed anything in one of your pillars for 5 or more days, you get a gentle reminder so it doesn't get forgotten.
+
+## Your profile
+
+Your **profile** is where you manage how you show up in the app. You can change your **display name** and pick a personal **emoji** from a set of available choices — this name and emoji are what your friends see on the leaderboard and on your profile.
+
+Your profile also displays — but doesn't let you edit here — your account email, along with your stats: total points, current streak, best-ever streak, the total number of tasks you've completed, and any badges or achievements you've unlocked along the way.
 
 ## The ⌘K command bar and AI assistant
 
