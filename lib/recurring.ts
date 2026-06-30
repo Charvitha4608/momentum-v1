@@ -4,6 +4,7 @@ type RecurringTaskConfig = {
   intervalDays: number | null // for 'custom'
   anchorDate: string // YYYY-MM-DD
   endDate?: string | null // YYYY-MM-DD inclusive; past this the task stops generating
+  pausedUntil?: string | null // YYYY-MM-DD; while set, nothing is due before this date, then resumes on/after it
 }
 
 /** Day count between two YYYY-MM-DD dates (anchored at UTC midnight). */
@@ -25,10 +26,14 @@ function daysBetween(fromDate: string, toDate: string): number {
  *
  * An `endDate` (inclusive) caps the schedule: nothing is due after it, so a
  * goal-backed task stops generating once its deadline passes.
+ *
+ * A `pausedUntil` date suspends the schedule: nothing is due before it, then the
+ * template resumes automatically on/after that date.
  */
 export function isDueOn(task: RecurringTaskConfig, dateStr: string): boolean {
   if (dateStr < task.anchorDate) return false
   if (task.endDate && dateStr > task.endDate) return false
+  if (task.pausedUntil && dateStr < task.pausedUntil) return false
 
   switch (task.frequency) {
     case "daily":
