@@ -34,7 +34,7 @@ export default async function CalendarPage({
   if (view === "planner") {
     const { days: weekDays, items } = await getWeekSchedule(params.week ?? today)
     return (
-      <AppShell active="/calendar" title="AI Planner" subtitle="Let Claude shape your week around your time">
+      <AppShell active="/calendar" title="AI Planner" subtitle="Let AI shape your week around your time">
         <div className="flex flex-col gap-4">
           <div className="flex justify-center">
             <CalendarViewSwitcher view={view} />
