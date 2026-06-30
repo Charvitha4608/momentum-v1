@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { RecurringTaskDialog } from "@/components/recurring-task-dialog"
+import { ManageRecurringDialog } from "@/components/manage-recurring-dialog"
 import { TargetDetailsEditor, type TargetDetailsValue } from "@/components/target-details-editor"
 
 const TIME_OF_DAY_CHOICES = [
@@ -664,6 +665,7 @@ export function TargetList({
               })
             }}
           />
+          <ManageRecurringDialog pillars={pillarOptions} today={date} />
         </form>
 
         {addedNote && (
