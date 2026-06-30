@@ -13,7 +13,7 @@ import {
 } from "@/app/actions/recurring"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import type { PillarOption } from "@/components/pillar-picker"
-import { shiftDateString, getWeekRange } from "@/lib/date"
+import { shiftDateString, getWeekRange } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
