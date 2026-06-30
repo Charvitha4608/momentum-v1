@@ -131,13 +131,11 @@ function Mouth({ mouse, forced }: { mouse: Vec; forced?: Vec | null }) {
 
 /**
  * Eye-tracking, blinking, body-leaning character illustration for the auth
- * screen. Interaction model adapted from inspirations/login_page/code.txt:
- * pupils track the live cursor (clamped distance + angle, via
- * getBoundingClientRect), bodies skew/shift toward the cursor with spring
- * physics, and characters react to form focus state.
+ * screen. Interaction model: pupils track the live cursor (clamped distance +
+ * angle, via getBoundingClientRect), bodies skew/shift toward the cursor with
+ * spring physics, and characters react to form focus state.
  *
- * Colors follow the Character 1-4 -> MASTER_SPEC palette mapping from
- * inspirations/login_page/prompt_for_claude.txt.
+ * Colors follow the Character 1-4 -> MASTER_SPEC palette mapping.
  */
 export function LoginCharacters({
   focused,

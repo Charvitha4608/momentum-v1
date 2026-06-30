@@ -1,6 +1,6 @@
 // Pure, dependency-free scheduling helpers shared by the AI Planner.
 //
-// The planner uses a hybrid design: Claude (or a heuristic fallback) decides
+// The planner uses a hybrid design: an AI model (or a heuristic fallback) decides
 // *priority, day, and time-of-day* for each task — the "judgment" — while the
 // deterministic packer in this file lays those decisions onto a concrete
 // timeline, enforcing the hard constraints (available hours, day windows,
