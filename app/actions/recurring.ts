@@ -83,3 +83,45 @@ export async function deactivateRecurringTask(id: number) {
 
   revalidatePath("/")
 }
+
+/**
+ * Suspends a recurring template until `pausedUntil` (YYYY-MM-DD); pass `null` to
+ * resume immediately. While paused, `isDueOn` generates nothing before that date.
+ */
+export async function pauseRecurringTask(id: number, pausedUntil: string | null) {
+  const userId = await getUserId()
+  await db
+    .update(recurringTasks)
+    .set({ pausedUntil })
+    .where(and(eq(recurringTasks.id, id), eq(recurringTasks.userId, userId)))
+
+  revalidatePath("/")
+}
+
+/**
+ * Caps a recurring template at `endDate` (YYYY-MM-DD inclusive); pass `null` to
+ * clear the cap and let it run open-ended again.
+ */
+export async function setRecurringEndDate(id: number, endDate: string | null) {
+  const userId = await getUserId()
+  await db
+    .update(recurringTasks)
+    .set({ endDate })
+    .where(and(eq(recurringTasks.id, id), eq(recurringTasks.userId, userId)))
+
+  revalidatePath("/")
+}
+
+/**
+ * Updates the days a weekly template fires on (0=Sun..6=Sat), stored as a JSON
+ * string. Only meaningful for `frequency === 'weekly'` templates.
+ */
+export async function updateRecurringDays(id: number, daysOfWeek: number[]) {
+  const userId = await getUserId()
+  await db
+    .update(recurringTasks)
+    .set({ daysOfWeek: JSON.stringify(daysOfWeek) })
+    .where(and(eq(recurringTasks.id, id), eq(recurringTasks.userId, userId)))
+
+  revalidatePath("/")
+}

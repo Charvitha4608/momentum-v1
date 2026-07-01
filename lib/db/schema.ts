@@ -93,6 +93,7 @@ export const recurringTasks = pgTable("recurring_tasks", {
   intervalDays: integer("intervalDays"), // custom: every N days
   anchorDate: text("anchorDate").notNull(), // YYYY-MM-DD, reference date for custom interval
   endDate: text("endDate"), // YYYY-MM-DD inclusive last day this template generates targets (null = open-ended)
+  pausedUntil: text("pausedUntil"), // YYYY-MM-DD: while set, generates nothing before this date, then resumes automatically on/after it (null = not paused)
   active: boolean("active").notNull().default(true),
   // `quantity` is the units of work each generated target represents (e.g. "5
   // problems"), inherited by every generated target. `longTermGoalId` optionally

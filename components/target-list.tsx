@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { RecurringTaskDialog } from "@/components/recurring-task-dialog"
+import { ManageRecurringDialog } from "@/components/manage-recurring-dialog"
 import { TargetDetailsEditor, type TargetDetailsValue } from "@/components/target-details-editor"
 
 const TIME_OF_DAY_CHOICES = [
@@ -110,7 +111,8 @@ export function TargetList({
     const pillar = pillarOptions.find((p) => p.id === newPillarId)
     if (!pillar) return
     const quantity = typeof newQuantity === "number" && newQuantity > 0 ? newQuantity : 1
-    const targetDate = selectedDate
+    // Clamp to today's minimum in case a past date was typed into the picker.
+    const targetDate = selectedDate < date ? date : selectedDate
     const scheduledAhead = targetDate !== date
 
     const meta: TargetSchedulingMeta | undefined =
@@ -536,7 +538,11 @@ export function TargetList({
                 min={date}
                 value={selectedDate}
                 onChange={(e) => {
-                  if (e.target.value && e.target.value >= date) setSelectedDate(e.target.value)
+                  // Accept whatever is typed so segment-by-segment editing works;
+                  // the minimum is enforced when the target is added. Rejecting
+                  // out-of-range intermediate values here would make React revert
+                  // the field and typing would appear to do nothing.
+                  if (e.target.value) setSelectedDate(e.target.value)
                 }}
                 aria-label="Pick a specific date"
                 className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
@@ -664,6 +670,7 @@ export function TargetList({
               })
             }}
           />
+          <ManageRecurringDialog pillars={pillarOptions} today={date} />
         </form>
 
         {addedNote && (
