@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { Archive, ArchiveRestore, ChevronRight, Pencil, Plus } from "lucide-react"
 
 import { archivePillar, createPillar, unarchivePillar, updatePillar } from "@/app/actions/pillars"
 import { Card, CardContent } from "@/components/ui/card"
+import { PillarChecklist } from "@/components/pillar-checklist"
 import type { PillarOption } from "@/components/pillar-picker"
 import { PILLAR_COLORS, PILLAR_ICONS } from "@/lib/pillar-icons"
 import { cn } from "@/lib/utils"
@@ -79,7 +81,9 @@ export function PillarManager({
 }) {
   const [pillars, setPillars] = useState(initialPillars)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
+  const reduceMotion = useReducedMotion()
   const [name, setName] = useState("")
   const [icon, setIcon] = useState(PILLAR_ICONS[0])
   const [color, setColor] = useState(PILLAR_COLORS[0])
@@ -193,26 +197,59 @@ export function PillarManager({
                   </div>
                 </form>
               ) : (
-                <div className={cn("flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-secondary/40", p.archived && "opacity-50")}>
-                  <span aria-hidden>{p.icon}</span>
-                  <span className="flex-1 truncate text-sm">{p.name}</span>
-                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: p.color }} aria-hidden />
-                  <button
-                    type="button"
-                    aria-label={`Edit ${p.name}`}
-                    onClick={() => startEdit(p)}
-                    className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={p.archived ? `Unarchive ${p.name}` : `Archive ${p.name}`}
-                    onClick={() => handleArchiveToggle(p)}
-                    className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {p.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
-                  </button>
+                <div className={cn(p.archived && "opacity-50")}>
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-secondary/40">
+                    {/* Toggle target: chevron + icon + name. Kept separate from the
+                        edit/archive buttons so expanding never hijacks them. */}
+                    <button
+                      type="button"
+                      aria-expanded={expandedId === p.id}
+                      aria-label={`${expandedId === p.id ? "Collapse" : "Expand"} ${p.name} checklist`}
+                      onClick={() => setExpandedId((cur) => (cur === p.id ? null : p.id))}
+                      className="flex flex-1 items-center gap-2 truncate text-left"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                          expandedId === p.id && "rotate-90"
+                        )}
+                        aria-hidden
+                      />
+                      <span aria-hidden>{p.icon}</span>
+                      <span className="flex-1 truncate text-sm">{p.name}</span>
+                    </button>
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: p.color }} aria-hidden />
+                    <button
+                      type="button"
+                      aria-label={`Edit ${p.name}`}
+                      onClick={() => startEdit(p)}
+                      className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={p.archived ? `Unarchive ${p.name}` : `Archive ${p.name}`}
+                      onClick={() => handleArchiveToggle(p)}
+                      className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {p.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+                    </button>
+                  </div>
+
+                  <AnimatePresence initial={false}>
+                    {expandedId === p.id && (
+                      <motion.div
+                        initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <PillarChecklist pillarId={p.id} accent={p.color} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </li>

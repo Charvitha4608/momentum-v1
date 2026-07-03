@@ -387,6 +387,25 @@ export async function moveTargetToToday(id: number, today?: string) {
   revalidatePath("/")
 }
 
+/**
+ * Postpone a carried-over backlog target to a chosen future day. Sets `date`
+ * to that day so it drops off today's list and the backlog, then resurfaces in
+ * the month calendar on the picked day (and on the dashboard once that day
+ * arrives, via carry-over). `originalDate` is left untouched so history still
+ * records it as planned for — and missed on — its original day, and `daily_stats`
+ * (keyed on `originalDate`) is unaffected. Only future days are accepted.
+ */
+export async function postponeTarget(id: number, date: string, today?: string) {
+  const userId = await getUserId()
+  const day = today ?? (await getToday())
+  if (date <= day) return
+  await db
+    .update(targets)
+    .set({ date })
+    .where(and(eq(targets.id, id), eq(targets.userId, userId), eq(targets.completed, false)))
+  revalidatePath("/")
+}
+
 export async function updateTargetTitle(id: number, title: string) {
   const userId = await getUserId()
   const trimmed = title.trim()

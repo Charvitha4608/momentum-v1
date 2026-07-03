@@ -3,11 +3,13 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowUpRight, Check, CircleX, ListTodo } from "lucide-react"
+import { ArrowUpRight, CalendarClock, Check, CircleX, ListTodo } from "lucide-react"
 
-import { moveTargetToToday, toggleTarget } from "@/app/actions/targets"
+import { moveTargetToToday, postponeTarget, toggleTarget } from "@/app/actions/targets"
 import { Card, CardContent } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { completionStatus, COMPLETION_META } from "@/lib/completion"
+import { shiftDateString } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 
 type BacklogItem = {
@@ -38,6 +40,15 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
     setItems((prev) => prev.filter((item) => item.id !== id))
     startTransition(async () => {
       await moveTargetToToday(id, today)
+      router.refresh()
+    })
+  }
+
+  function handlePostpone(id: number, date: string) {
+    // The task now lives on a future day — drop it from the backlog and resync.
+    setItems((prev) => prev.filter((item) => item.id !== id))
+    startTransition(async () => {
+      await postponeTarget(id, date, today)
       router.refresh()
     })
   }
@@ -122,6 +133,11 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
                           </span>
                           {!item.completed && (
                             <div className="flex shrink-0 items-center gap-1.5">
+                              <PostponeButton
+                                title={item.title}
+                                today={today}
+                                onPick={(date) => handlePostpone(item.id, date)}
+                              />
                               <button
                                 type="button"
                                 aria-label={`Move "${item.title}" to today`}
@@ -152,5 +168,83 @@ export function BacklogCard({ initialItems, today }: { initialItems: BacklogItem
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Per-row "postpone" control: pick a future day to finish a backlog task. The
+ * task moves to that day (its `date`) and leaves the backlog until then.
+ */
+function PostponeButton({
+  title,
+  today,
+  onPick,
+}: {
+  title: string
+  today: string
+  onPick: (date: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const tomorrow = shiftDateString(today, 1)
+  const [value, setValue] = useState(tomorrow)
+
+  function label(date: string) {
+    if (date === tomorrow) return "Tomorrow"
+    if (date === shiftDateString(today, 2)) return "In 2 days"
+    if (date === shiftDateString(today, 7)) return "Next week"
+    const [y, m, d] = date.split("-").map(Number)
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+  }
+
+  const quickDates = [tomorrow, shiftDateString(today, 2), shiftDateString(today, 7)]
+
+  function pick(date: string) {
+    setOpen(false)
+    onPick(date)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        type="button"
+        aria-label={`Postpone "${title}" to a chosen day`}
+        title="Postpone to a chosen day"
+        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-primary"
+      >
+        <CalendarClock className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="end">
+        <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">Finish on</p>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {quickDates.map((date) => (
+            <button
+              key={date}
+              type="button"
+              onClick={() => pick(date)}
+              className="rounded-md bg-surface-2 px-2 py-1 text-xs text-secondary-foreground transition-colors hover:bg-surface-3"
+            >
+              {label(date)}
+            </button>
+          ))}
+        </div>
+        <input
+          type="date"
+          min={tomorrow}
+          value={value}
+          onChange={(e) => {
+            if (e.target.value) setValue(e.target.value)
+          }}
+          aria-label="Pick a specific date"
+          className="mb-2 w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
+        />
+        <button
+          type="button"
+          onClick={() => value > today && pick(value)}
+          className="flex h-8 w-full items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/80"
+        >
+          Postpone to {label(value)}
+        </button>
+      </PopoverContent>
+    </Popover>
   )
 }

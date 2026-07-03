@@ -74,6 +74,28 @@ export const pillars = pgTable("pillars", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
 
+// A manually-ticked checklist item that belongs to a pillar, TickTick-style.
+// Fully separate from `targets` / `daily_stats` / the recurring engine: these
+// have no scheduled date, never contribute to daily scores or streaks, and are
+// only ever toggled by hand. `completedAt` records when an item was ticked (for
+// display only). `isRecurring` is reserved for a future reset feature — no UI
+// or reset logic reads it yet.
+export const pillarTasks = pgTable("pillar_tasks", {
+  id: serial("id").primaryKey(),
+  pillarId: integer("pillarId")
+    .notNull()
+    .references(() => pillars.id, { onDelete: "cascade" }),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  isDone: boolean("isDone").notNull().default(false),
+  completedAt: timestamp("completedAt"),
+  isRecurring: boolean("isRecurring").notNull().default(false),
+  sortOrder: integer("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+})
+
 // A template that automatically generates target rows on the days it's due.
 // `daysOfWeek` is a JSON-encoded array of 0-6 (Sun-Sat) used when
 // frequency = 'weekly'. `intervalDays`/`anchorDate` are used when
