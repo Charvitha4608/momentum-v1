@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { longTermGoals, pillarGoals, pillars, targets } from "@/lib/db/schema"
-import { daysBetween, getToday } from "@/lib/date"
+import { daysBetween, getToday, shiftDateString } from "@/lib/date"
 import { createNotification } from "@/app/actions/notifications"
 
 async function getUserId() {
@@ -24,19 +24,28 @@ export type PillarGoalWithProgress = {
   pillarColor: string
   metric: "points" | "sessions"
   targetValue: number
-  actual: number
+  used: number
   progress: number
+  daysLeft: number
 }
 
-/** Active pillar goals with progress against the current calendar month. */
+/**
+ * [start, end) of the rolling 30-day cycle that contains `today`, anchored at
+ * the goal's immutable `anchorDate`. The cycle advances automatically as
+ * `today` moves forward — no cron resets a pillar goal each month.
+ */
+function rollingPeriod(anchorDate: string, today: string): { start: string; end: string; daysLeft: number } {
+  const sinceAnchor = daysBetween(anchorDate, today)
+  const cyclesElapsed = Math.max(0, Math.floor(sinceAnchor / 30))
+  const start = shiftDateString(anchorDate, cyclesElapsed * 30)
+  const end = shiftDateString(start, 30)
+  return { start, end, daysLeft: daysBetween(today, end) }
+}
+
+/** Pillar goals with progress against their current rolling 30-day cycle. */
 export async function getPillarGoals(): Promise<PillarGoalWithProgress[]> {
   const userId = await getUserId()
   const today = await getToday()
-  const [year, month] = today.split("-").map(Number)
-  const start = `${year}-${String(month).padStart(2, "0")}-01`
-  const nextMonth = month === 12 ? 1 : month + 1
-  const nextYear = month === 12 ? year + 1 : year
-  const end = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
 
   const goals = await db
     .select({
@@ -47,51 +56,119 @@ export async function getPillarGoals(): Promise<PillarGoalWithProgress[]> {
       pillarColor: pillars.color,
       metric: pillarGoals.metric,
       targetValue: pillarGoals.targetValue,
+      anchorDate: pillarGoals.anchorDate,
     })
     .from(pillarGoals)
     .innerJoin(pillars, eq(pillarGoals.pillarId, pillars.id))
     .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.active, true)))
     .orderBy(asc(pillarGoals.id))
 
-  if (goals.length === 0) return []
+  // Each goal has its own anchor, so its window differs — sum per goal (same
+  // shape as the long-term-goal progress query, but filtered by pillar + the
+  // rolling window on originalDate instead of by longTermGoalId). Attributing
+  // by originalDate (creation day) keeps carry-overs pinned to their cycle.
+  const result: PillarGoalWithProgress[] = []
+  for (const g of goals) {
+    const { start, end, daysLeft } = rollingPeriod(g.anchorDate, today)
+    const [{ used }] = await db
+      .select({
+        used:
+          g.metric === "sessions"
+            ? sql<number>`count(*) filter (where ${targets.completed})`
+            : sql<number>`coalesce(sum(${targets.points}) filter (where ${targets.completed}), 0)`,
+      })
+      .from(targets)
+      .where(
+        and(
+          eq(targets.userId, userId),
+          eq(targets.pillarId, g.pillarId),
+          gte(targets.originalDate, start),
+          sql`${targets.originalDate} < ${end}`
+        )
+      )
 
-  const actuals = await db
-    .select({
-      pillarId: targets.pillarId,
-      points: sql<number>`coalesce(sum(${targets.points}) filter (where ${targets.completed}), 0)`,
-      sessions: sql<number>`count(*) filter (where ${targets.completed})`,
-    })
-    .from(targets)
-    .where(and(eq(targets.userId, userId), gte(targets.originalDate, start), sql`${targets.originalDate} < ${end}`))
-    .groupBy(targets.pillarId)
-
-  const actualMap = new Map(actuals.map((a) => [a.pillarId, a]))
-
-  return goals.map((g) => {
-    const a = actualMap.get(g.pillarId)
-    const actual = g.metric === "points" ? Number(a?.points ?? 0) : Number(a?.sessions ?? 0)
-    return {
-      ...g,
+    const usedNum = Number(used)
+    result.push({
+      id: g.id,
+      pillarId: g.pillarId,
+      pillarName: g.pillarName,
+      pillarIcon: g.pillarIcon,
+      pillarColor: g.pillarColor,
       metric: g.metric as "points" | "sessions",
-      actual,
-      progress: g.targetValue > 0 ? Math.round((actual / g.targetValue) * 100) : 0,
-    }
-  })
+      targetValue: g.targetValue,
+      used: usedNum,
+      progress: g.targetValue > 0 ? Math.round((usedNum / g.targetValue) * 100) : 0,
+      daysLeft,
+    })
+  }
+
+  return result
 }
 
-export async function createPillarGoal(pillarId: number, metric: "points" | "sessions", targetValue: number) {
+export type PillarGoalContribution = {
+  id: number
+  title: string
+  points: number
+  originalDate: string
+}
+
+/**
+ * The completed targets that count toward a pillar goal's CURRENT rolling
+ * cycle — the read-only breakdown shown when a Pillar Goal row is expanded.
+ * Attributed by `originalDate` (creation day), not `date`, so carry-overs stay
+ * pinned to the cycle they were created in.
+ */
+export async function getPillarGoalBreakdown(pillarId: number): Promise<PillarGoalContribution[]> {
+  const userId = await getUserId()
+  const today = await getToday()
+
+  const [goal] = await db
+    .select({ anchorDate: pillarGoals.anchorDate })
+    .from(pillarGoals)
+    .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.pillarId, pillarId), eq(pillarGoals.active, true)))
+    .limit(1)
+  if (!goal) return []
+
+  const { start, end } = rollingPeriod(goal.anchorDate, today)
+
+  return db
+    .select({
+      id: targets.id,
+      title: targets.title,
+      points: targets.points,
+      originalDate: targets.originalDate,
+    })
+    .from(targets)
+    .where(
+      and(
+        eq(targets.userId, userId),
+        eq(targets.pillarId, pillarId),
+        eq(targets.completed, true),
+        gte(targets.originalDate, start),
+        sql`${targets.originalDate} < ${end}`
+      )
+    )
+    .orderBy(asc(targets.originalDate), asc(targets.id))
+}
+
+/**
+ * Create or replace the single goal for a pillar. `pillarId` is unique, so
+ * re-submitting for a pillar that already has a goal updates it in place (new
+ * target + new anchor). Points-only for now; `metric` stays on the row so the
+ * 'sessions' variant can be surfaced later without another migration.
+ */
+export async function createPillarGoal(pillarId: number, targetValue: number, anchorDate: string) {
   const userId = await getUserId()
   if (!Number.isFinite(targetValue) || targetValue <= 0) return null
-
-  // Only one active goal per pillar at a time, so progress isn't ambiguous.
-  await db
-    .update(pillarGoals)
-    .set({ active: false })
-    .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.pillarId, pillarId), eq(pillarGoals.active, true)))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) return null
 
   const [created] = await db
     .insert(pillarGoals)
-    .values({ userId, pillarId, metric, targetValue: Math.round(targetValue) })
+    .values({ userId, pillarId, metric: "points", targetValue: Math.round(targetValue), anchorDate })
+    .onConflictDoUpdate({
+      target: pillarGoals.pillarId,
+      set: { metric: "points", targetValue: Math.round(targetValue), anchorDate },
+    })
     .returning()
 
   revalidatePath("/goals")

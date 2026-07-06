@@ -229,9 +229,13 @@ export const dailyStats = pgTable(
   (table) => [unique("daily_stats_user_date_unique").on(table.userId, table.date)]
 )
 
-// A monthly target for effort invested in a pillar - either a points total
-// or a number of completed-task "sessions". Drives the Goals page progress
-// bars and the Reflection page's desired-vs-actual effort comparison.
+// A rolling-monthly effort target scoped to one pillar. `metric` is the goal
+// type ('points' — the only one surfaced today — or 'sessions', reserved for
+// later); `targetValue` is the amount to hit each cycle. The 30-day cycle is
+// derived on read from `anchorDate` (a user-picked, immutable start), so it
+// rolls forward automatically without a cron. `pillarId` is unique — at most
+// one goal per pillar, so progress is never ambiguous. Drives the Goals page
+// progress bars and the Reflection page's desired-vs-actual effort comparison.
 export const pillarGoals = pgTable("pillar_goals", {
   id: serial("id").primaryKey(),
   userId: text("userId")
@@ -239,9 +243,11 @@ export const pillarGoals = pgTable("pillar_goals", {
     .references(() => user.id, { onDelete: "cascade" }),
   pillarId: integer("pillarId")
     .notNull()
-    .references(() => pillars.id, { onDelete: "cascade" }),
+    .references(() => pillars.id, { onDelete: "cascade" })
+    .unique(),
   metric: text("metric").notNull(), // 'points' | 'sessions'
   targetValue: integer("targetValue").notNull(),
+  anchorDate: text("anchorDate").notNull(), // YYYY-MM-DD, immutable rolling-cycle start
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
