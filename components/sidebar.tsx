@@ -8,6 +8,7 @@ import { ChevronsLeft, ChevronsRight, LogOut, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
 import { NavIcon } from "@/components/nav-icon"
+import { FocusDock } from "@/components/focus/focus-dock"
 import { NotificationBell } from "@/components/notification-bell"
 import { CommandBarTrigger } from "@/components/command-bar"
 import { navItems, type ActivePath } from "@/lib/nav-items"
@@ -92,6 +93,7 @@ export function Sidebar({ active, unreadCount }: { active: ActivePath; unreadCou
       </nav>
 
       <div className="flex flex-col gap-1.5 border-t border-line px-2 py-2">
+        <FocusDock collapsed={collapsed} />
         <NotificationBell
           unreadCount={unreadCount}
           active={active === "/notifications"}

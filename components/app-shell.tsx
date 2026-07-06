@@ -5,6 +5,7 @@ import { getUnreadCount } from "@/app/actions/notifications"
 import { getPillars } from "@/app/actions/pillars"
 import { BottomTabBar } from "@/components/bottom-tab-bar"
 import { CommandBar, CommandBarTrigger } from "@/components/command-bar"
+import { FocusProvider } from "@/components/focus/focus-provider"
 import { NotificationBell } from "@/components/notification-bell"
 import { PageTransition } from "@/components/page-transition"
 import { SignOutButton } from "@/components/sign-out-button"
@@ -26,6 +27,7 @@ export async function AppShell({
   const [unreadCount, pillars] = await Promise.all([getUnreadCount(), getPillars()])
 
   return (
+    <FocusProvider>
     <div className="bg-app-canvas flex h-dvh overflow-hidden">
       <TimezoneSync />
       <CommandBar pillars={pillars} />
@@ -66,5 +68,6 @@ export async function AppShell({
         <BottomTabBar active={active} />
       </div>
     </div>
+    </FocusProvider>
   )
 }

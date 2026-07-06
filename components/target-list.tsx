@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useTransition, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Plus, X, SlidersHorizontal, Check, CalendarDays } from "lucide-react"
+import { Plus, X, SlidersHorizontal, Check, CalendarDays, Timer } from "lucide-react"
 import { shiftDateString } from "@/lib/date-utils"
 import { addTarget, toggleTarget, deleteTarget, updateTargetTitle, updateTargetDetails, getTodayTargets, type TargetSchedulingMeta, type TargetEffortMeta } from "@/app/actions/targets"
 import type { ActiveLongTermGoal } from "@/app/actions/goals"
@@ -15,6 +15,7 @@ import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { RecurringTaskDialog } from "@/components/recurring-task-dialog"
 import { ManageRecurringDialog } from "@/components/manage-recurring-dialog"
 import { TargetDetailsEditor, type TargetDetailsValue } from "@/components/target-details-editor"
+import { useFocus } from "@/components/focus/focus-provider"
 
 const TIME_OF_DAY_CHOICES = [
   { value: "morning", label: "Morning" },
@@ -75,6 +76,7 @@ export function TargetList({
   const [completingId, setCompletingId] = useState<number | null>(null)
   const [actualValue, setActualValue] = useState("")
   const [, startTransition] = useTransition()
+  const { focusSession, startFocus } = useFocus()
 
   // Long-term goals available for the currently-selected pillar. Default-select
   // the lone goal when there's exactly one; otherwise leave it unset.
@@ -315,6 +317,7 @@ export function TargetList({
   }
 
   function renderRow(item: Target) {
+    const isFocusing = focusSession?.targetId === item.id
     return (
       <motion.li
         key={item.id}
@@ -323,6 +326,8 @@ export function TargetList({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97 }}
         transition={{ duration: 0.18 }}
+        // Subtle pillar-accent tint marks the row currently being focused on.
+        style={isFocusing ? { backgroundColor: `${item.pillarColor}14` } : undefined}
         className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-surface-3"
       >
         <Checkbox
@@ -404,6 +409,30 @@ export function TargetList({
         <span className="shrink-0 rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground">
           +{item.points}
         </span>
+
+        {/* Focus timer: start a Pomodoro on this target; while active the slot
+            shows a subtle inline "Focusing" label instead of the button. */}
+        {!item.completed && editingId !== item.id && completingId !== item.id && (
+          isFocusing ? (
+            <span
+              className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground"
+              title="Focusing on this target"
+            >
+              <Timer className="h-3 w-3" style={{ color: item.pillarColor }} aria-hidden />
+              Focusing
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => startFocus({ id: item.id, title: item.title, pillarColor: item.pillarColor })}
+              aria-label={`Start a focus timer for "${item.title}"`}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Timer className="h-3 w-3" aria-hidden />
+              Focus
+            </button>
+          )
+        )}
 
         {/* Edit details: pillar, duration & effort (rename happens via the title) */}
         {editingId !== item.id && completingId !== item.id && (

@@ -270,6 +270,22 @@ export async function updateTargetDetails(id: number, details: TargetDetails) {
   revalidatePath("/")
 }
 
+/**
+ * Add focus-timer minutes to a target's recorded `actualMinutes`, incrementing
+ * whatever is already there (null counts as 0). Used by the Pomodoro focus dock
+ * to log time spent on a target without touching its completion state.
+ */
+export async function addFocusMinutes(id: number, minutes: number) {
+  const add = Math.round(minutes)
+  if (!Number.isFinite(add) || add < 1) return
+  const userId = await getUserId()
+  await db
+    .update(targets)
+    .set({ actualMinutes: sql`coalesce(${targets.actualMinutes}, 0) + ${add}` })
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  revalidatePath("/")
+}
+
 /** Update a target's planner metadata (duration / time-of-day / deadline). */
 export async function updateTargetSchedulingMeta(id: number, meta: TargetSchedulingMeta) {
   const userId = await getUserId()
