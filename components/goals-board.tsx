@@ -48,6 +48,11 @@ export function GoalsBoard({
     setActivePillars((prev) => [...prev, pillar])
   }
 
+  // Per-pillar progress for the small goal chip on each Pillars-list row.
+  const goalChips: Record<number, { used: number; target: number; progress: number }> = Object.fromEntries(
+    pillarGoals.map((g) => [g.pillarId, { used: g.used, target: g.targetValue, progress: g.progress }])
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-end">
@@ -64,7 +69,7 @@ export function GoalsBoard({
         <LongTermGoalCard key={`long-term-goals-${refreshKey}`} initialGoals={longTermGoals} today={today} />
       </div>
 
-      <PillarManager initialPillars={initialAllPillars} onActivePillarsChange={setActivePillars} />
+      <PillarManager initialPillars={initialAllPillars} onActivePillarsChange={setActivePillars} goalChips={goalChips} />
     </div>
   )
 }

@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils"
 
 type ManagedPillar = PillarOption & { archived: boolean }
 
+/** Per-pillar progress used for the small goal chip on each pillar row. */
+export type PillarGoalChip = { used: number; target: number; progress: number }
+
 function PillarFormFields({
   name,
   icon,
@@ -75,9 +78,11 @@ function PillarFormFields({
 export function PillarManager({
   initialPillars,
   onActivePillarsChange,
+  goalChips,
 }: {
   initialPillars: ManagedPillar[]
   onActivePillarsChange?: (pillars: PillarOption[]) => void
+  goalChips?: Record<number, PillarGoalChip>
 }) {
   const [pillars, setPillars] = useState(initialPillars)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -167,7 +172,9 @@ export function PillarManager({
         <h2 className="mb-4 text-lg font-semibold">Pillars</h2>
 
         <ul className="flex flex-col gap-1">
-          {[...active, ...archived].map((p) => (
+          {[...active, ...archived].map((p) => {
+            const chip = goalChips?.[p.id]
+            return (
             <li key={p.id}>
               {editingId === p.id ? (
                 <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg bg-secondary/40 px-3 py-2.5">
@@ -218,6 +225,14 @@ export function PillarManager({
                       <span aria-hidden>{p.icon}</span>
                       <span className="flex-1 truncate text-sm">{p.name}</span>
                     </button>
+                    {chip && (
+                      <span
+                        className="shrink-0 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
+                        title={`Goal: ${chip.used}/${chip.target} pts this cycle`}
+                      >
+                        {chip.used}/{chip.target} · {chip.progress}%
+                      </span>
+                    )}
                     <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: p.color }} aria-hidden />
                     <button
                       type="button"
@@ -253,7 +268,8 @@ export function PillarManager({
                 </div>
               )}
             </li>
-          ))}
+            )
+          })}
         </ul>
 
         {creating ? (

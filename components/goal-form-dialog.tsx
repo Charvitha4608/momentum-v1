@@ -11,13 +11,8 @@ import { cn } from "@/lib/utils"
 type GoalType = "pillar" | "long-term"
 
 const TYPE_OPTIONS: { value: GoalType; label: string }[] = [
-  { value: "pillar", label: "Pillar Goal" },
-  { value: "long-term", label: "Long-Term Goal" },
-]
-
-const METRIC_OPTIONS: { value: "points" | "sessions"; label: string }[] = [
-  { value: "points", label: "Points" },
-  { value: "sessions", label: "Sessions" },
+  { value: "pillar", label: "Pillar goal" },
+  { value: "long-term", label: "Long-term goal" },
 ]
 
 export function GoalFormDialog({
@@ -34,18 +29,19 @@ export function GoalFormDialog({
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<GoalType>("pillar")
   const [pillarId, setPillarId] = useState<number | null>(pillars[0]?.id ?? null)
-  const [metric, setMetric] = useState<"points" | "sessions">("points")
   const [targetValue, setTargetValue] = useState(100)
   const [title, setTitle] = useState("")
   const [deadline, setDeadline] = useState(today)
+  // Immutable rolling-cycle start for a pillar goal. Defaults to today.
+  const [anchorDate, setAnchorDate] = useState(today)
   const [isPending, startTransition] = useTransition()
 
   function reset() {
     setType("pillar")
-    setMetric("points")
     setTargetValue(100)
     setTitle("")
     setDeadline(today)
+    setAnchorDate(today)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -55,7 +51,7 @@ export function GoalFormDialog({
 
     startTransition(async () => {
       if (type === "pillar") {
-        await createPillarGoal(pillarId, metric, targetValue)
+        await createPillarGoal(pillarId, targetValue, anchorDate)
       } else {
         await createLongTermGoal(title, pillarId, targetValue, deadline)
       }
@@ -113,31 +109,8 @@ export function GoalFormDialog({
             <PillarPicker pillars={pillars} value={pillarId} onChange={setPillarId} onPillarCreated={onPillarCreated} />
           </div>
 
-          {type === "pillar" && (
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-muted-foreground">Metric</p>
-              <div className="flex flex-wrap gap-1.5">
-                {METRIC_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setMetric(opt.value)}
-                    className={cn(
-                      "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
-                      metric === opt.value
-                        ? "border-primary bg-surface-3 text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{type === "pillar" ? "Target / month" : "Target tasks"}</span>
+            <span className="text-sm text-muted-foreground">{type === "pillar" ? "Target (points)" : "Target tasks"}</span>
             <input
               type="number"
               min={1}
@@ -146,6 +119,21 @@ export function GoalFormDialog({
               className="w-24 rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
             />
           </div>
+
+          {type === "pillar" && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Start date</span>
+              <input
+                type="date"
+                value={anchorDate}
+                onChange={(e) => {
+                  if (e.target.value) setAnchorDate(e.target.value)
+                }}
+                aria-label="Rolling-cycle start date"
+                className="rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm text-foreground outline-none"
+              />
+            </div>
+          )}
 
           {type === "long-term" && (
             <div className="flex items-center gap-2">
