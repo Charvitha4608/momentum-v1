@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { targets, dailyStats, notifications, user, pillars, recurringTasks } from "@/lib/db/schema"
+import { targets, dailyStats, notifications, user, pillars, recurringTasks, focusSessions } from "@/lib/db/schema"
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
@@ -271,19 +271,66 @@ export async function updateTargetDetails(id: number, details: TargetDetails) {
 }
 
 /**
- * Add focus-timer minutes to a target's recorded `actualMinutes`, incrementing
- * whatever is already there (null counts as 0). Used by the Pomodoro focus dock
- * to log time spent on a target without touching its completion state.
+ * Precise per-session timing captured client-side by the focus provider, used
+ * to populate the `focus_sessions` timing columns that the Focus heatmaps
+ * aggregate on. Optional so the action degrades gracefully if ever called
+ * without it (the row still logs, deriving durationSec from `minutes`).
  */
-export async function addFocusMinutes(id: number, minutes: number) {
+export type FocusSessionTiming = {
+  /** Actual focused seconds: floor((ended - started - paused) / 1000). */
+  durationSec: number
+  /** True when the timer ran to (near) its natural end. */
+  completed: boolean
+  /** Epoch ms when the session started. */
+  startedAtMs: number
+  /** Epoch ms when the session ended. */
+  endedAtMs: number
+}
+
+/**
+ * Record a completed Pomodoro focus session against a target: add its minutes
+ * to the target's `actualMinutes` (incrementing whatever is there; null counts
+ * as 0) AND log one `focus_sessions` row so sessions-mode pillar goals have
+ * something to count. The session's pillar is copied from the target so it
+ * still counts toward the pillar goal if the target is later deleted, and its
+ * `date` is today (window key for the rolling cycle). When `timing` is provided
+ * the row also stores the precise `startedAt`/`endedAt`/`durationSec`/`completed`
+ * that the Focus heatmaps bucket on (by `startedAt`, in the user's timezone).
+ * Completion state is untouched. Sessions shorter than a minute are ignored.
+ */
+export async function recordFocusSession(id: number, minutes: number, timing?: FocusSessionTiming) {
   const add = Math.round(minutes)
   if (!Number.isFinite(add) || add < 1) return
   const userId = await getUserId()
+
+  const [target] = await db
+    .select({ pillarId: targets.pillarId })
+    .from(targets)
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+    .limit(1)
+  if (!target) return
+
+  const today = await getToday()
   await db
     .update(targets)
     .set({ actualMinutes: sql`coalesce(${targets.actualMinutes}, 0) + ${add}` })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  await db.insert(focusSessions).values({
+    userId,
+    targetId: id,
+    pillarId: target.pillarId,
+    minutes: add,
+    date: today,
+    startedAt: timing ? new Date(timing.startedAtMs) : undefined,
+    endedAt: timing ? new Date(timing.endedAtMs) : undefined,
+    durationSec: timing ? Math.max(0, Math.floor(timing.durationSec)) : add * 60,
+    completed: timing?.completed ?? false,
+  })
+
   revalidatePath("/")
+  revalidatePath("/goals")
+  revalidatePath("/reflection")
+  revalidatePath("/calendar")
 }
 
 /** Update a target's planner metadata (duration / time-of-day / deadline). */

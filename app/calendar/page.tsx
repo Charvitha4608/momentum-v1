@@ -13,7 +13,12 @@ import { WeeklyScoreCard } from "@/components/weekly-score-card"
 import { AppShell } from "@/components/app-shell"
 import { AiPlanner } from "@/components/ai-planner"
 import { getWeekSchedule } from "@/app/actions/planner"
-import { getToday } from "@/lib/date"
+import { getToday, shiftDateString } from "@/lib/date"
+import {
+  getWeeklyFocusByPillar,
+  getWeeklyFocusTotal,
+  getMonthlyFocusByPillarByWeek,
+} from "@/lib/focus-stats"
 
 export default async function CalendarPage({
   searchParams,
@@ -46,9 +51,17 @@ export default async function CalendarPage({
   }
 
   if (view === "week") {
-    const [weekDays, streak] = await Promise.all([
-      getWeekTargets(params.week ?? today),
+    const weekParam = params.week ?? today
+    // Monday of the selected week — the anchor the focus aggregations bucket on.
+    const [wy, wm, wd] = weekParam.split("-").map(Number)
+    const wdow = new Date(Date.UTC(wy, wm - 1, wd)).getUTCDay() // 0=Sun..6=Sat
+    const weekStart = shiftDateString(weekParam, wdow === 0 ? -6 : 1 - wdow)
+
+    const [weekDays, streak, weeklyByPillar, weeklyTotal] = await Promise.all([
+      getWeekTargets(weekParam),
       getCurrentStreak(),
+      getWeeklyFocusByPillar(session.user.id, weekStart),
+      getWeeklyFocusTotal(session.user.id, weekStart),
     ])
     return (
       <AppShell active="/calendar" title="Calendar">
@@ -56,14 +69,25 @@ export default async function CalendarPage({
           <div className="flex justify-center">
             <CalendarViewSwitcher view={view} />
           </div>
-          <CalendarWeekView days={weekDays} weekDate={params.week ?? today} today={today} streak={streak} />
+          <CalendarWeekView
+            days={weekDays}
+            weekDate={weekParam}
+            today={today}
+            streak={streak}
+            weeklyByPillar={weeklyByPillar}
+            weeklyTotal={weeklyTotal}
+          />
         </div>
       </AppShell>
     )
   }
 
   if (view === "pillars") {
-    const pillarStats = await getMonthPillarFullStats(year, month)
+    const monthStart = `${year}-${String(month).padStart(2, "0")}-01`
+    const [pillarStats, monthlyByPillar] = await Promise.all([
+      getMonthPillarFullStats(year, month),
+      getMonthlyFocusByPillarByWeek(session.user.id, monthStart),
+    ])
 
     let prevYear = year
     let prevMonth = month - 1
@@ -105,7 +129,7 @@ export default async function CalendarPage({
               </Link>
             </div>
           </div>
-          <CalendarPillarsView pillars={pillarStats} />
+          <CalendarPillarsView pillars={pillarStats} monthlyByPillar={monthlyByPillar} monthLabel={monthLabel} />
         </div>
       </AppShell>
     )

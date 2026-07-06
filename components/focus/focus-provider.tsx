@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 
-import { addFocusMinutes } from "@/app/actions/targets"
+import { recordFocusSession } from "@/app/actions/targets"
 
 /** Default Pomodoro length: 25 minutes. */
 export const FOCUS_DEFAULT_DURATION_SEC = 25 * 60
@@ -95,19 +95,29 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(timer)
   }, [focusSession])
 
-  // Logs elapsed whole minutes to the target, then clears the session.
+  // Logs elapsed whole minutes to the target, then clears the session. The
+  // same call also persists a focus_sessions row carrying the precise timing
+  // (start/end/actual seconds/whether it ran to completion) the Focus heatmaps
+  // aggregate on — strictly additive to Tier 1's actualMinutes increment.
   const finish = useCallback((session: FocusSession) => {
     if (finishingRef.current) return
     finishingRef.current = true
     const now = Date.now()
-    const elapsedMinutes = Math.round(elapsedMs(session, now) / 60000)
+    const elapsed = elapsedMs(session, now)
+    const elapsedMinutes = Math.round(elapsed / 60000)
     localStorage.removeItem(STORAGE_KEY)
     setFocusSession(null)
     const done = () => {
       finishingRef.current = false
     }
     if (elapsedMinutes >= 1) {
-      addFocusMinutes(session.targetId, elapsedMinutes).then(done, done)
+      const durationSec = Math.floor(elapsed / 1000)
+      recordFocusSession(session.targetId, elapsedMinutes, {
+        durationSec,
+        completed: durationSec >= session.durationSec * 0.95,
+        startedAtMs: session.startedAt,
+        endedAtMs: now,
+      }).then(done, done)
     } else {
       done()
     }

@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { shiftDateString } from "@/lib/date-utils"
 import type { WeekDayTargets, DateTarget } from "@/app/actions/history"
+import type { WeeklyFocusPillar } from "@/lib/focus-stats"
+import { WeeklyFocusCard } from "@/components/focus/focus-heatmap-cards"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -182,19 +184,24 @@ function SummaryPanel({
   days,
   today,
   streak,
+  weeklyTotal,
 }: {
   days: WeekDayTargets[]
   today: string
   streak: number
+  weeklyTotal: { totalSec: number; sessionCount: number }
 }) {
   const allTargets = days.flatMap((d) => d.targets)
   const completed = allTargets.filter((t) => t.completed)
-  const missed = allTargets.filter((t) => !t.completed && t.completedDate === null)
   const totalTasks = allTargets.length
   const completedCount = completed.length
-  const missedCount = missed.length
   const pointsEarned = completed.reduce((s, t) => s + t.points, 0)
   const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
+
+  // Focus time this week (Section 4a — replaces the old "Missed" cell).
+  const focusTotalMin = Math.round(weeklyTotal.totalSec / 60)
+  const focusHours = Math.floor(focusTotalMin / 60)
+  const focusMins = focusTotalMin % 60
 
   // Overdue = not completed on a past day
   const overdueTasks = days
@@ -236,16 +243,19 @@ function SummaryPanel({
         {/* Core stats */}
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Completion", value: `${completionRate}%`, primary: true },
-            { label: "Points Earned", value: pointsEarned, primary: true },
-            { label: "Completed", value: completedCount, primary: true },
-            { label: "Missed", value: missedCount, primary: false },
-          ].map(({ label, value, primary }) => (
+            { label: "Completion", value: `${completionRate}%`, sublabel: null },
+            { label: "Points Earned", value: pointsEarned, sublabel: null },
+            { label: "Completed", value: completedCount, sublabel: null },
+            {
+              label: "Focus time",
+              value: `${focusHours}h ${focusMins}m`,
+              sublabel: `${weeklyTotal.sessionCount} pomodoro${weeklyTotal.sessionCount === 1 ? "" : "s"}`,
+            },
+          ].map(({ label, value, sublabel }) => (
             <div key={label} className="rounded-lg bg-secondary/40 px-3 py-2.5 text-center">
-              <div className={cn("text-xl font-bold", primary ? "text-primary" : "text-muted-foreground")}>
-                {value}
-              </div>
+              <div className="text-xl font-bold text-primary">{value}</div>
               <div className="mt-0.5 text-[0.6rem] text-muted-foreground">{label}</div>
+              {sublabel && <div className="text-[0.55rem] text-muted-foreground/70">{sublabel}</div>}
             </div>
           ))}
         </div>
@@ -339,11 +349,15 @@ export function CalendarWeekView({
   weekDate,
   today,
   streak,
+  weeklyByPillar,
+  weeklyTotal,
 }: {
   days: WeekDayTargets[]
   weekDate: string
   today: string
   streak: number
+  weeklyByPillar: WeeklyFocusPillar[]
+  weeklyTotal: { totalSec: number; sessionCount: number }
 }) {
   const prevWeek = shiftDateString(weekDate, -7)
   const nextWeek = shiftDateString(weekDate, 7)
@@ -371,8 +385,9 @@ export function CalendarWeekView({
 
       {/* 70/30 two-column layout — summary after days on mobile, right column on desktop */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_300px] lg:items-start lg:gap-6">
-        {/* Left: agenda */}
+        {/* Left: focus heatmap + agenda */}
         <div className="flex flex-col gap-3">
+          <WeeklyFocusCard pillars={weeklyByPillar} />
           {days.map((day) => (
             <DayCard key={day.date} day={day} today={today} />
           ))}
@@ -380,7 +395,7 @@ export function CalendarWeekView({
 
         {/* Right: sticky summary */}
         <div className="lg:sticky lg:top-4">
-          <SummaryPanel days={days} today={today} streak={streak} />
+          <SummaryPanel days={days} today={today} streak={streak} weeklyTotal={weeklyTotal} />
         </div>
       </div>
     </div>

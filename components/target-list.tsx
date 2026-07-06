@@ -23,7 +23,16 @@ const TIME_OF_DAY_CHOICES = [
   { value: "evening", label: "Evening" },
 ] as const
 
-const DURATION_CHOICES = [15, 30, 45, 60, 90, 120]
+// One focus session is 25 minutes; the quick chips set the estimate to a whole
+// number of sessions (n × 25m), while the free input still accepts any minutes.
+const SESSION_MINUTES = 25
+const SESSION_CHOICES = [1, 2, 3, 4]
+
+/** ceil(estimate / 25) — the passive "≈ N sessions" read-out. Null when unset. */
+function sessionsFor(minutes: number | null): number | null {
+  if (minutes == null || minutes <= 0) return null
+  return Math.ceil(minutes / SESSION_MINUTES)
+}
 
 type Target = {
   id: number
@@ -59,7 +68,6 @@ export function TargetList({
   const [pillarOptions, setPillarOptions] = useState<PillarOption[]>(pillars)
   const [newTitle, setNewTitle] = useState("")
   const [newPillarId, setNewPillarId] = useState<number | null>(pillars[0]?.id ?? null)
-  const [newDuration, setNewDuration] = useState<number | null>(null)
   const [newTimeOfDay, setNewTimeOfDay] = useState<string | null>(null)
   const [newQuantity, setNewQuantity] = useState<number | "">(1)
   const [newEstimatedMinutes, setNewEstimatedMinutes] = useState<number | null>(null)
@@ -118,9 +126,7 @@ export function TargetList({
     const scheduledAhead = targetDate !== date
 
     const meta: TargetSchedulingMeta | undefined =
-      newDuration !== null || newTimeOfDay !== null
-        ? { durationMinutes: newDuration, preferredTimeOfDay: newTimeOfDay }
-        : undefined
+      newTimeOfDay !== null ? { preferredTimeOfDay: newTimeOfDay } : undefined
     const effort: TargetEffortMeta = {
       quantity,
       estimatedMinutes: newEstimatedMinutes,
@@ -156,7 +162,7 @@ export function TargetList({
           estimatedMinutes: newEstimatedMinutes,
           actualMinutes: null,
           longTermGoalId: newGoalId,
-          durationMinutes: newDuration,
+          durationMinutes: null,
           preferredTimeOfDay: newTimeOfDay,
         },
       ])
@@ -178,7 +184,6 @@ export function TargetList({
 
     setNewTitle("")
     inputRef.current?.focus()
-    setNewDuration(null)
     setNewTimeOfDay(null)
     setNewQuantity(1)
     setNewEstimatedMinutes(null)
@@ -591,7 +596,7 @@ export function TargetList({
               aria-label="Add planning details"
               title="Duration & preferred time (helps the AI Planner)"
               className={`flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                newDuration !== null || newTimeOfDay !== null || newQuantity !== 1 || newEstimatedMinutes !== null || newGoalId !== null
+                newTimeOfDay !== null || newQuantity !== 1 || newEstimatedMinutes !== null || newGoalId !== null
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-line text-muted-foreground hover:text-foreground"
               }`}
@@ -637,36 +642,45 @@ export function TargetList({
                   />
                 </div>
                 <div className="flex-1">
-                  <p className="mb-1.5 text-xs text-foreground">Est. minutes</p>
+                  <p className="mb-1.5 text-xs text-foreground">Estimate</p>
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
                     value={newEstimatedMinutes ?? ""}
                     onChange={(e) => setNewEstimatedMinutes(e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value) || 0)))}
-                    placeholder="—"
+                    placeholder="minutes"
                     className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
               </div>
 
-              <p className="mb-1.5 text-xs text-foreground">Duration</p>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {DURATION_CHOICES.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setNewDuration((cur) => (cur === m ? null : m))}
-                    className={`rounded-md px-2 py-1 text-xs transition-colors ${
-                      newDuration === m
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
-                    }`}
-                  >
-                    {m < 60 ? `${m}m` : `${m / 60}h`}
-                  </button>
-                ))}
+              {/* Session-count shortcuts: chip n sets the estimate to n × 25m. */}
+              <div className="mb-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {SESSION_CHOICES.map((n) => {
+                    const minutes = n * SESSION_MINUTES
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setNewEstimatedMinutes((cur) => (cur === minutes ? null : minutes))}
+                        className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                          newEstimatedMinutes === minutes
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-surface-2 text-secondary-foreground hover:bg-surface-3"
+                        }`}
+                      >
+                        {n} {n === 1 ? "session" : "sessions"}
+                      </button>
+                    )
+                  })}
+                </div>
+                {sessionsFor(newEstimatedMinutes) !== null && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">≈ {sessionsFor(newEstimatedMinutes)} sessions</p>
+                )}
               </div>
+
               <p className="mb-1.5 text-xs text-foreground">Preferred time</p>
               <div className="flex flex-wrap gap-1.5">
                 {TIME_OF_DAY_CHOICES.map((c) => (

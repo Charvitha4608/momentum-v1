@@ -5,6 +5,8 @@ import { Flame } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { PillarFullStat } from "@/app/actions/history"
+import type { MonthlyFocusPillar } from "@/lib/focus-stats"
+import { MonthlyFocusCard } from "@/components/focus/focus-heatmap-cards"
 
 function statusInfo(rate: number): { label: string; className: string } {
   if (rate >= 0.75) return { label: "Strong", className: "text-primary" }
@@ -23,7 +25,15 @@ function formatLastActive(dateStr: string | null): string {
   })
 }
 
-export function CalendarPillarsView({ pillars }: { pillars: PillarFullStat[] }) {
+export function CalendarPillarsView({
+  pillars,
+  monthlyByPillar,
+  monthLabel,
+}: {
+  pillars: PillarFullStat[]
+  monthlyByPillar: MonthlyFocusPillar[]
+  monthLabel: string
+}) {
   // Sort by completion rate desc, points as tiebreaker
   const ranked = [...pillars].sort((a, b) => {
     const rateA = a.totalTasks > 0 ? a.completedTasks / a.totalTasks : 0
@@ -32,11 +42,20 @@ export function CalendarPillarsView({ pillars }: { pillars: PillarFullStat[] }) 
   })
 
   if (pillars.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No pillar activity this month.</p>
+    return (
+      <div className="flex flex-col gap-4">
+        <MonthlyFocusCard pillars={monthlyByPillar} monthLabel={monthLabel} />
+        <p className="py-8 text-center text-sm text-muted-foreground">No pillar activity this month.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="flex flex-col gap-4">
+      {/* Full-width monthly focus heatmap (Section 5), above the pillar cards. */}
+      <MonthlyFocusCard pillars={monthlyByPillar} monthLabel={monthLabel} />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {/* Per-pillar detail cards */}
       {ranked.map((pillar) => {
         const rate = pillar.totalTasks > 0 ? pillar.completedTasks / pillar.totalTasks : 0
@@ -96,6 +115,7 @@ export function CalendarPillarsView({ pillars }: { pillars: PillarFullStat[] }) 
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }

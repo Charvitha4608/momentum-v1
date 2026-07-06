@@ -132,7 +132,7 @@ function PillarGoalBreakdown({ pillarId, accent }: { pillarId: number; accent: s
     return <p className="px-1 pt-2 text-xs text-muted-foreground">Loading…</p>
   }
   if (items.length === 0) {
-    return <p className="px-1 pt-2 text-xs text-muted-foreground">No completed tasks in this cycle yet.</p>
+    return <p className="px-1 pt-2 text-xs text-muted-foreground">Nothing in this cycle yet.</p>
   }
 
   return (
@@ -140,7 +140,9 @@ function PillarGoalBreakdown({ pillarId, accent }: { pillarId: number; accent: s
       {items.map((it) => (
         <li key={it.id} className="flex items-center justify-between gap-2 text-xs">
           <span className="min-w-0 flex-1 truncate text-foreground">{it.title}</span>
-          <span className="shrink-0 tabular-nums text-muted-foreground">+{it.points}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">
+            {it.metric === "sessions" ? `${it.value}m` : `+${it.value}`}
+          </span>
         </li>
       ))}
     </ul>
