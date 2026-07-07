@@ -174,6 +174,7 @@ export async function getTodayTargets(today?: string) {
       quantity: targets.quantity,
       estimatedMinutes: targets.estimatedMinutes,
       actualMinutes: targets.actualMinutes,
+      sessionsCompleted: targets.sessionsCompleted,
       longTermGoalId: targets.longTermGoalId,
       durationMinutes: targets.durationMinutes,
       preferredTimeOfDay: targets.preferredTimeOfDay,
@@ -229,7 +230,10 @@ export async function addTarget(
       quantity,
       estimatedMinutes: effort?.estimatedMinutes ?? null,
       longTermGoalId: effort?.longTermGoalId ?? null,
-      durationMinutes: meta?.durationMinutes ?? null,
+      // The single Estimate field is the source of truth for scheduling too:
+      // mirror it into the planner's `durationMinutes` (which no longer has its
+      // own input) so the AI Planner still sees the user's time estimate.
+      durationMinutes: meta?.durationMinutes ?? effort?.estimatedMinutes ?? null,
       preferredTimeOfDay: meta?.preferredTimeOfDay ?? null,
       deadline: meta?.deadline ?? null,
     })
@@ -256,17 +260,21 @@ export type TargetDetails = {
  */
 export async function updateTargetDetails(id: number, details: TargetDetails) {
   const userId = await getUserId()
-  await db
-    .update(targets)
-    .set({
-      ...(details.pillarId !== undefined ? { pillarId: details.pillarId } : {}),
-      ...(details.quantity !== undefined ? { quantity: details.quantity > 0 ? Math.round(details.quantity) : 1 } : {}),
-      ...(details.estimatedMinutes !== undefined ? { estimatedMinutes: details.estimatedMinutes } : {}),
-      ...(details.longTermGoalId !== undefined ? { longTermGoalId: details.longTermGoalId } : {}),
-      ...(details.durationMinutes !== undefined ? { durationMinutes: details.durationMinutes } : {}),
-      ...(details.preferredTimeOfDay !== undefined ? { preferredTimeOfDay: details.preferredTimeOfDay } : {}),
-    })
-    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  const set: Partial<typeof targets.$inferInsert> = {}
+  if (details.pillarId !== undefined) set.pillarId = details.pillarId
+  if (details.quantity !== undefined) set.quantity = details.quantity > 0 ? Math.round(details.quantity) : 1
+  if (details.estimatedMinutes !== undefined) set.estimatedMinutes = details.estimatedMinutes
+  if (details.longTermGoalId !== undefined) set.longTermGoalId = details.longTermGoalId
+  if (details.preferredTimeOfDay !== undefined) set.preferredTimeOfDay = details.preferredTimeOfDay
+  // The Estimate field is the single source of truth; mirror a concrete estimate
+  // into the planner's `durationMinutes` so scheduling stays in sync. A null or
+  // absent estimate leaves any planner-assigned duration untouched (a legacy
+  // caller may still pass an explicit durationMinutes).
+  if (typeof details.estimatedMinutes === "number") set.durationMinutes = details.estimatedMinutes
+  else if (details.durationMinutes !== undefined) set.durationMinutes = details.durationMinutes
+
+  if (Object.keys(set).length === 0) return
+  await db.update(targets).set(set).where(and(eq(targets.id, id), eq(targets.userId, userId)))
   revalidatePath("/")
 }
 
@@ -285,6 +293,8 @@ export type FocusSessionTiming = {
   startedAtMs: number
   /** Epoch ms when the session ended. */
   endedAtMs: number
+  /** When true, also bump the target's whole `sessionsCompleted` counter by 1. */
+  creditsSession?: boolean
 }
 
 /**
@@ -313,7 +323,12 @@ export async function recordFocusSession(id: number, minutes: number, timing?: F
   const today = await getToday()
   await db
     .update(targets)
-    .set({ actualMinutes: sql`coalesce(${targets.actualMinutes}, 0) + ${add}` })
+    .set({
+      actualMinutes: sql`coalesce(${targets.actualMinutes}, 0) + ${add}`,
+      // A block whose countdown completed (or that finished the task) credits a
+      // whole session; abandoning a fresh block early records minutes only.
+      ...(timing?.creditsSession ? { sessionsCompleted: sql`${targets.sessionsCompleted} + 1` } : {}),
+    })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   await db.insert(focusSessions).values({
     userId,
@@ -400,16 +415,24 @@ export async function toggleTarget(
     .from(targets)
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
 
-  // Completing records the time spent; un-completing clears it so a re-check
-  // re-prompts for a fresh value.
-  const cleanMinutes =
-    completed && actualMinutes != null && Number.isFinite(actualMinutes) && actualMinutes >= 0
-      ? Math.round(actualMinutes)
-      : null
+  // `actualMinutes` semantics: `undefined` leaves the stored value untouched, so
+  // minutes summed by focus sessions survive a plain check or uncheck. An
+  // explicit number sets it (used when the user types a value at completion); an
+  // explicit `null` clears it. This stops a completion prompt — or an uncheck —
+  // from wiping focus-accumulated minutes.
+  const minutesUpdate: { actualMinutes?: number | null } =
+    actualMinutes === undefined
+      ? {}
+      : {
+          actualMinutes:
+            completed && actualMinutes != null && Number.isFinite(actualMinutes) && actualMinutes >= 0
+              ? Math.round(actualMinutes)
+              : null,
+        }
 
   await db
     .update(targets)
-    .set({ completed, completedDate: completed ? realToday : null, actualMinutes: completed ? cleanMinutes : null })
+    .set({ completed, completedDate: completed ? realToday : null, ...minutesUpdate })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   // Stats are keyed on the target's original day, so a carried-over backlog
   // task counts toward the day it was planned for, not today.

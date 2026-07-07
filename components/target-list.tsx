@@ -48,6 +48,7 @@ type Target = {
   quantity: number
   estimatedMinutes: number | null
   actualMinutes: number | null
+  sessionsCompleted: number
   longTermGoalId: number | null
   durationMinutes: number | null
   preferredTimeOfDay: string | null
@@ -84,7 +85,7 @@ export function TargetList({
   const [completingId, setCompletingId] = useState<number | null>(null)
   const [actualValue, setActualValue] = useState("")
   const [, startTransition] = useTransition()
-  const { focusSession, startFocus } = useFocus()
+  const { focusSession, startFocus, endFocus } = useFocus()
 
   // Long-term goals available for the currently-selected pillar. Default-select
   // the lone goal when there's exactly one; otherwise leave it unset.
@@ -161,6 +162,7 @@ export function TargetList({
           quantity,
           estimatedMinutes: newEstimatedMinutes,
           actualMinutes: null,
+          sessionsCompleted: 0,
           longTermGoalId: newGoalId,
           durationMinutes: null,
           preferredTimeOfDay: newTimeOfDay,
@@ -191,15 +193,32 @@ export function TargetList({
     setSelectedDate(date)
   }
 
-  // Checking a target opens the actual-minutes prompt instead of completing
-  // immediately; unchecking completes the reverse and clears the recorded time.
+  // Checking a target normally opens the actual-minutes prompt. But if the user
+  // already focused on it, actualMinutes is auto-summed — so complete straight
+  // away and keep that sum (no prompt). Finishing the task mid-focus flushes the
+  // active block (crediting a session). Unchecking preserves any recorded
+  // minutes so focus time isn't lost on a re-check.
   function handleCheck(id: number, checked: boolean) {
     if (checked) {
+      const item = items.find((it) => it.id === id)
+      const focusingThis = focusSession?.targetId === id
+      // End an in-progress focus on this target; the final block is where the
+      // task got finished, so credit it. Its minutes are flushed server-side.
+      if (focusingThis) endFocus({ finishCredit: true })
+      if (focusingThis || (item && item.actualMinutes != null)) {
+        setItems((prev) => prev.map((it) => (it.id === id ? { ...it, completed: true } : it)))
+        startTransition(async () => {
+          const realId = await resolveId(id)
+          // No minutes passed → the server preserves the focus-summed value.
+          await toggleTarget(realId, true, date)
+        })
+        return
+      }
       setCompletingId(id)
       setActualValue("")
       return
     }
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, completed: false, actualMinutes: null } : it)))
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, completed: false } : it)))
     startTransition(async () => {
       const realId = await resolveId(id)
       await toggleTarget(realId, false, date)
@@ -278,10 +297,26 @@ export function TargetList({
    * (quantity > 1, estimate present) as a small pill so the numbers read
    * clearly on the row.
    */
+  /** Small "sessions done" pill (done / planned), shown once any block lands. */
+  function renderSessionsBadge(item: Target) {
+    if (item.sessionsCompleted <= 0) return null
+    const planned = sessionsFor(item.estimatedMinutes)
+    return (
+      <span
+        className="flex items-center gap-0.5 rounded-full border border-line px-1.5 py-0.5 text-xs text-muted-foreground"
+        title={`${item.sessionsCompleted} focus session${item.sessionsCompleted === 1 ? "" : "s"} completed`}
+      >
+        <Timer className="h-3 w-3" aria-hidden />
+        {planned ? `${item.sessionsCompleted}/${planned}` : item.sessionsCompleted}
+      </span>
+    )
+  }
+
   function renderEffortHint(item: Target) {
     const showQty = item.quantity != null && item.quantity > 1
     const showEst = item.estimatedMinutes != null
-    if (!showQty && !showEst) return null
+    const sessionsBadge = renderSessionsBadge(item)
+    if (!showQty && !showEst && !sessionsBadge) return null
     return (
       <span className="flex shrink-0 items-center gap-1">
         {showQty && (
@@ -300,6 +335,7 @@ export function TargetList({
             ~{item.estimatedMinutes}m
           </span>
         )}
+        {sessionsBadge}
       </span>
     )
   }
@@ -367,7 +403,15 @@ export function TargetList({
         )}
 
         {/* Effort / time tracking: hint before completion, summary after */}
-        {editingId !== item.id && (item.completed ? renderTimeSummary(item) : renderEffortHint(item))}
+        {editingId !== item.id &&
+          (item.completed ? (
+            <span className="flex shrink-0 items-center gap-1">
+              {renderSessionsBadge(item)}
+              {renderTimeSummary(item)}
+            </span>
+          ) : (
+            renderEffortHint(item)
+          ))}
 
         {/* Actual-minutes prompt shown after the user checks a target complete */}
         {completingId === item.id && (
@@ -429,7 +473,14 @@ export function TargetList({
           ) : (
             <button
               type="button"
-              onClick={() => startFocus({ id: item.id, title: item.title, pillarColor: item.pillarColor })}
+              onClick={() =>
+                startFocus({
+                  id: item.id,
+                  title: item.title,
+                  pillarColor: item.pillarColor,
+                  estimatedMinutes: item.estimatedMinutes,
+                })
+              }
               aria-label={`Start a focus timer for "${item.title}"`}
               className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
             >

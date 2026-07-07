@@ -162,6 +162,10 @@ export const targets = pgTable("targets", {
   quantity: integer("quantity").notNull().default(1),
   estimatedMinutes: integer("estimatedMinutes"),
   actualMinutes: integer("actualMinutes"),
+  // Whole count of focus blocks completed for this target: +1 each time a
+  // block's countdown reaches zero, or when the final shrunk-remainder block is
+  // where the task gets finished. Independent of `actualMinutes` (wall-clock).
+  sessionsCompleted: integer("sessionsCompleted").notNull().default(0),
   longTermGoalId: integer("longTermGoalId").references(() => longTermGoals.id, { onDelete: "set null" }),
   // --- AI Planner scheduling metadata -------------------------------------
   // `durationMinutes` is the user's rough effort estimate for this task; the

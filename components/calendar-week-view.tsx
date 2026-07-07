@@ -120,10 +120,33 @@ function DayCard({ day, today }: { day: WeekDayTargets; today: string }) {
   const stats = dayStats(day.targets)
   const { weekday, date } = formatDayLabel(day.date)
 
+  // Empty days collapse to a slim single-line row (~40px) — no tall card body.
+  if (day.targets.length === 0) {
+    return (
+      <Card
+        className={cn(
+          "overflow-hidden transition-shadow !flex-row items-center justify-between gap-2 px-4 py-2.5",
+          isToday && "ring-2 ring-primary",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">{weekday}</span>
+          <span className="text-sm text-muted-foreground">{date}</span>
+          {isToday && (
+            <span className="rounded-full bg-primary px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-primary-foreground">
+              Today
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground/50">No tasks scheduled</span>
+      </Card>
+    )
+  }
+
   return (
     <Card
       className={cn(
-        "overflow-hidden transition-shadow",
+        "overflow-hidden transition-shadow gap-1 py-3",
         isToday && "ring-2 ring-primary",
         stats.allDone && stats.total > 0 && "border-primary/30",
       )}
@@ -161,16 +184,12 @@ function DayCard({ day, today }: { day: WeekDayTargets; today: string }) {
       </div>
 
       {/* Task list */}
-      <div className={cn("px-4", day.targets.length === 0 ? "pb-3 pt-1" : "pb-2 pt-1")}>
-        {day.targets.length === 0 ? (
-          <p className="text-xs text-muted-foreground/50">No tasks scheduled</p>
-        ) : (
-          <div className="flex flex-col">
-            {day.targets.map((t) => (
-              <TaskRow key={t.id} task={t} isPast={isPast} />
-            ))}
-          </div>
-        )}
+      <div className="px-4 pb-2 pt-1">
+        <div className="flex flex-col">
+          {day.targets.map((t) => (
+            <TaskRow key={t.id} task={t} isPast={isPast} />
+          ))}
+        </div>
       </div>
     </Card>
   )
