@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { targets, dailyStats, notifications, user, pillars, recurringTasks } from "@/lib/db/schema"
+import { targets, dailyStats, notifications, user, pillars, recurringTasks, focusSessions } from "@/lib/db/schema"
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
@@ -174,6 +174,7 @@ export async function getTodayTargets(today?: string) {
       quantity: targets.quantity,
       estimatedMinutes: targets.estimatedMinutes,
       actualMinutes: targets.actualMinutes,
+      sessionsCompleted: targets.sessionsCompleted,
       longTermGoalId: targets.longTermGoalId,
       durationMinutes: targets.durationMinutes,
       preferredTimeOfDay: targets.preferredTimeOfDay,
@@ -229,7 +230,10 @@ export async function addTarget(
       quantity,
       estimatedMinutes: effort?.estimatedMinutes ?? null,
       longTermGoalId: effort?.longTermGoalId ?? null,
-      durationMinutes: meta?.durationMinutes ?? null,
+      // The single Estimate field is the source of truth for scheduling too:
+      // mirror it into the planner's `durationMinutes` (which no longer has its
+      // own input) so the AI Planner still sees the user's time estimate.
+      durationMinutes: meta?.durationMinutes ?? effort?.estimatedMinutes ?? null,
       preferredTimeOfDay: meta?.preferredTimeOfDay ?? null,
       deadline: meta?.deadline ?? null,
     })
@@ -256,18 +260,92 @@ export type TargetDetails = {
  */
 export async function updateTargetDetails(id: number, details: TargetDetails) {
   const userId = await getUserId()
+  const set: Partial<typeof targets.$inferInsert> = {}
+  if (details.pillarId !== undefined) set.pillarId = details.pillarId
+  if (details.quantity !== undefined) set.quantity = details.quantity > 0 ? Math.round(details.quantity) : 1
+  if (details.estimatedMinutes !== undefined) set.estimatedMinutes = details.estimatedMinutes
+  if (details.longTermGoalId !== undefined) set.longTermGoalId = details.longTermGoalId
+  if (details.preferredTimeOfDay !== undefined) set.preferredTimeOfDay = details.preferredTimeOfDay
+  // The Estimate field is the single source of truth; mirror a concrete estimate
+  // into the planner's `durationMinutes` so scheduling stays in sync. A null or
+  // absent estimate leaves any planner-assigned duration untouched (a legacy
+  // caller may still pass an explicit durationMinutes).
+  if (typeof details.estimatedMinutes === "number") set.durationMinutes = details.estimatedMinutes
+  else if (details.durationMinutes !== undefined) set.durationMinutes = details.durationMinutes
+
+  if (Object.keys(set).length === 0) return
+  await db.update(targets).set(set).where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  revalidatePath("/")
+}
+
+/**
+ * Precise per-session timing captured client-side by the focus provider, used
+ * to populate the `focus_sessions` timing columns that the Focus heatmaps
+ * aggregate on. Optional so the action degrades gracefully if ever called
+ * without it (the row still logs, deriving durationSec from `minutes`).
+ */
+export type FocusSessionTiming = {
+  /** Actual focused seconds: floor((ended - started - paused) / 1000). */
+  durationSec: number
+  /** True when the timer ran to (near) its natural end. */
+  completed: boolean
+  /** Epoch ms when the session started. */
+  startedAtMs: number
+  /** Epoch ms when the session ended. */
+  endedAtMs: number
+  /** When true, also bump the target's whole `sessionsCompleted` counter by 1. */
+  creditsSession?: boolean
+}
+
+/**
+ * Record a completed Pomodoro focus session against a target: add its minutes
+ * to the target's `actualMinutes` (incrementing whatever is there; null counts
+ * as 0) AND log one `focus_sessions` row so sessions-mode pillar goals have
+ * something to count. The session's pillar is copied from the target so it
+ * still counts toward the pillar goal if the target is later deleted, and its
+ * `date` is today (window key for the rolling cycle). When `timing` is provided
+ * the row also stores the precise `startedAt`/`endedAt`/`durationSec`/`completed`
+ * that the Focus heatmaps bucket on (by `startedAt`, in the user's timezone).
+ * Completion state is untouched. Sessions shorter than a minute are ignored.
+ */
+export async function recordFocusSession(id: number, minutes: number, timing?: FocusSessionTiming) {
+  const add = Math.round(minutes)
+  if (!Number.isFinite(add) || add < 1) return
+  const userId = await getUserId()
+
+  const [target] = await db
+    .select({ pillarId: targets.pillarId })
+    .from(targets)
+    .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+    .limit(1)
+  if (!target) return
+
+  const today = await getToday()
   await db
     .update(targets)
     .set({
-      ...(details.pillarId !== undefined ? { pillarId: details.pillarId } : {}),
-      ...(details.quantity !== undefined ? { quantity: details.quantity > 0 ? Math.round(details.quantity) : 1 } : {}),
-      ...(details.estimatedMinutes !== undefined ? { estimatedMinutes: details.estimatedMinutes } : {}),
-      ...(details.longTermGoalId !== undefined ? { longTermGoalId: details.longTermGoalId } : {}),
-      ...(details.durationMinutes !== undefined ? { durationMinutes: details.durationMinutes } : {}),
-      ...(details.preferredTimeOfDay !== undefined ? { preferredTimeOfDay: details.preferredTimeOfDay } : {}),
+      actualMinutes: sql`coalesce(${targets.actualMinutes}, 0) + ${add}`,
+      // A block whose countdown completed (or that finished the task) credits a
+      // whole session; abandoning a fresh block early records minutes only.
+      ...(timing?.creditsSession ? { sessionsCompleted: sql`${targets.sessionsCompleted} + 1` } : {}),
     })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
+  await db.insert(focusSessions).values({
+    userId,
+    targetId: id,
+    pillarId: target.pillarId,
+    minutes: add,
+    date: today,
+    startedAt: timing ? new Date(timing.startedAtMs) : undefined,
+    endedAt: timing ? new Date(timing.endedAtMs) : undefined,
+    durationSec: timing ? Math.max(0, Math.floor(timing.durationSec)) : add * 60,
+    completed: timing?.completed ?? false,
+  })
+
   revalidatePath("/")
+  revalidatePath("/goals")
+  revalidatePath("/reflection")
+  revalidatePath("/calendar")
 }
 
 /** Update a target's planner metadata (duration / time-of-day / deadline). */
@@ -337,16 +415,24 @@ export async function toggleTarget(
     .from(targets)
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
 
-  // Completing records the time spent; un-completing clears it so a re-check
-  // re-prompts for a fresh value.
-  const cleanMinutes =
-    completed && actualMinutes != null && Number.isFinite(actualMinutes) && actualMinutes >= 0
-      ? Math.round(actualMinutes)
-      : null
+  // `actualMinutes` semantics: `undefined` leaves the stored value untouched, so
+  // minutes summed by focus sessions survive a plain check or uncheck. An
+  // explicit number sets it (used when the user types a value at completion); an
+  // explicit `null` clears it. This stops a completion prompt — or an uncheck —
+  // from wiping focus-accumulated minutes.
+  const minutesUpdate: { actualMinutes?: number | null } =
+    actualMinutes === undefined
+      ? {}
+      : {
+          actualMinutes:
+            completed && actualMinutes != null && Number.isFinite(actualMinutes) && actualMinutes >= 0
+              ? Math.round(actualMinutes)
+              : null,
+        }
 
   await db
     .update(targets)
-    .set({ completed, completedDate: completed ? realToday : null, actualMinutes: completed ? cleanMinutes : null })
+    .set({ completed, completedDate: completed ? realToday : null, ...minutesUpdate })
     .where(and(eq(targets.id, id), eq(targets.userId, userId)))
   // Stats are keyed on the target's original day, so a carried-over backlog
   // task counts toward the day it was planned for, not today.

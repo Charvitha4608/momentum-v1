@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { longTermGoals, pillarGoals, pillars, targets } from "@/lib/db/schema"
+import { focusSessions, longTermGoals, pillarGoals, pillars, targets } from "@/lib/db/schema"
 import { daysBetween, getToday, shiftDateString } from "@/lib/date"
 import { createNotification } from "@/app/actions/notifications"
 
@@ -63,31 +63,45 @@ export async function getPillarGoals(): Promise<PillarGoalWithProgress[]> {
     .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.active, true)))
     .orderBy(asc(pillarGoals.id))
 
-  // Each goal has its own anchor, so its window differs — sum per goal (same
-  // shape as the long-term-goal progress query, but filtered by pillar + the
-  // rolling window on originalDate instead of by longTermGoalId). Attributing
-  // by originalDate (creation day) keeps carry-overs pinned to their cycle.
+  // Each goal has its own anchor, so its window differs — aggregate per goal
+  // over the same rolling [start, end) cycle, differing only by source table
+  // and unit. Points sum completed-target points, attributed by `originalDate`
+  // (creation day) so carry-overs stay pinned to their cycle; sessions count
+  // `focus_sessions` rows, windowed on their completion `date`.
   const result: PillarGoalWithProgress[] = []
   for (const g of goals) {
     const { start, end, daysLeft } = rollingPeriod(g.anchorDate, today)
-    const [{ used }] = await db
-      .select({
-        used:
-          g.metric === "sessions"
-            ? sql<number>`count(*) filter (where ${targets.completed})`
-            : sql<number>`coalesce(sum(${targets.points}) filter (where ${targets.completed}), 0)`,
-      })
-      .from(targets)
-      .where(
-        and(
-          eq(targets.userId, userId),
-          eq(targets.pillarId, g.pillarId),
-          gte(targets.originalDate, start),
-          sql`${targets.originalDate} < ${end}`
+    let usedNum: number
+    if (g.metric === "sessions") {
+      const [{ used }] = await db
+        .select({ used: sql<number>`count(*)` })
+        .from(focusSessions)
+        .where(
+          and(
+            eq(focusSessions.userId, userId),
+            eq(focusSessions.pillarId, g.pillarId),
+            gte(focusSessions.date, start),
+            sql`${focusSessions.date} < ${end}`
+          )
         )
-      )
+      usedNum = Number(used)
+    } else {
+      const [{ used }] = await db
+        .select({
+          used: sql<number>`coalesce(sum(${targets.points}) filter (where ${targets.completed}), 0)`,
+        })
+        .from(targets)
+        .where(
+          and(
+            eq(targets.userId, userId),
+            eq(targets.pillarId, g.pillarId),
+            gte(targets.originalDate, start),
+            sql`${targets.originalDate} < ${end}`
+          )
+        )
+      usedNum = Number(used)
+    }
 
-    const usedNum = Number(used)
     result.push({
       id: g.id,
       pillarId: g.pillarId,
@@ -108,22 +122,26 @@ export async function getPillarGoals(): Promise<PillarGoalWithProgress[]> {
 export type PillarGoalContribution = {
   id: number
   title: string
-  points: number
-  originalDate: string
+  // For a points goal this is the target's points; for a sessions goal it's the
+  // session's minutes. The card labels it per `metric`.
+  value: number
+  metric: "points" | "sessions"
+  date: string
 }
 
 /**
- * The completed targets that count toward a pillar goal's CURRENT rolling
- * cycle — the read-only breakdown shown when a Pillar Goal row is expanded.
- * Attributed by `originalDate` (creation day), not `date`, so carry-overs stay
- * pinned to the cycle they were created in.
+ * The items that count toward a pillar goal's CURRENT rolling cycle — the
+ * read-only breakdown shown when a Pillar Goal row is expanded. Mirrors the
+ * progress query's source per `metric`: completed targets (attributed by
+ * `originalDate` so carry-overs stay pinned to their cycle) for points goals,
+ * or focus_sessions (windowed on completion `date`) for sessions goals.
  */
 export async function getPillarGoalBreakdown(pillarId: number): Promise<PillarGoalContribution[]> {
   const userId = await getUserId()
   const today = await getToday()
 
   const [goal] = await db
-    .select({ anchorDate: pillarGoals.anchorDate })
+    .select({ anchorDate: pillarGoals.anchorDate, metric: pillarGoals.metric })
     .from(pillarGoals)
     .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.pillarId, pillarId), eq(pillarGoals.active, true)))
     .limit(1)
@@ -131,7 +149,35 @@ export async function getPillarGoalBreakdown(pillarId: number): Promise<PillarGo
 
   const { start, end } = rollingPeriod(goal.anchorDate, today)
 
-  return db
+  if (goal.metric === "sessions") {
+    const rows = await db
+      .select({
+        id: focusSessions.id,
+        title: targets.title,
+        minutes: focusSessions.minutes,
+        date: focusSessions.date,
+      })
+      .from(focusSessions)
+      .leftJoin(targets, eq(focusSessions.targetId, targets.id))
+      .where(
+        and(
+          eq(focusSessions.userId, userId),
+          eq(focusSessions.pillarId, pillarId),
+          gte(focusSessions.date, start),
+          sql`${focusSessions.date} < ${end}`
+        )
+      )
+      .orderBy(asc(focusSessions.date), asc(focusSessions.id))
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title ?? "Focus session",
+      value: r.minutes,
+      metric: "sessions" as const,
+      date: r.date,
+    }))
+  }
+
+  const rows = await db
     .select({
       id: targets.id,
       title: targets.title,
@@ -149,25 +195,38 @@ export async function getPillarGoalBreakdown(pillarId: number): Promise<PillarGo
       )
     )
     .orderBy(asc(targets.originalDate), asc(targets.id))
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    value: r.points,
+    metric: "points" as const,
+    date: r.originalDate,
+  }))
 }
 
 /**
  * Create or replace the single goal for a pillar. `pillarId` is unique, so
  * re-submitting for a pillar that already has a goal updates it in place (new
- * target + new anchor). Points-only for now; `metric` stays on the row so the
- * 'sessions' variant can be surfaced later without another migration.
+ * metric + target + anchor). `metric` picks the progress source: 'points'
+ * (completed-target points) or 'sessions' (focus_sessions count).
  */
-export async function createPillarGoal(pillarId: number, targetValue: number, anchorDate: string) {
+export async function createPillarGoal(
+  pillarId: number,
+  targetValue: number,
+  anchorDate: string,
+  metric: "points" | "sessions" = "points"
+) {
   const userId = await getUserId()
   if (!Number.isFinite(targetValue) || targetValue <= 0) return null
   if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) return null
+  if (metric !== "points" && metric !== "sessions") return null
 
   const [created] = await db
     .insert(pillarGoals)
-    .values({ userId, pillarId, metric: "points", targetValue: Math.round(targetValue), anchorDate })
+    .values({ userId, pillarId, metric, targetValue: Math.round(targetValue), anchorDate })
     .onConflictDoUpdate({
       target: pillarGoals.pillarId,
-      set: { metric: "points", targetValue: Math.round(targetValue), anchorDate },
+      set: { metric, targetValue: Math.round(targetValue), anchorDate },
     })
     .returning()
 

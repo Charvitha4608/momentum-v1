@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, serial, integer, real, unique } from "drizzle-orm/pg-core"
+import { pgTable, text, timestamp, boolean, serial, integer, real, unique, index } from "drizzle-orm/pg-core"
 
 // --- Better Auth required tables -------------------------------------------
 // Column names are camelCase to match Better Auth's defaults. Do not rename.
@@ -162,6 +162,10 @@ export const targets = pgTable("targets", {
   quantity: integer("quantity").notNull().default(1),
   estimatedMinutes: integer("estimatedMinutes"),
   actualMinutes: integer("actualMinutes"),
+  // Whole count of focus blocks completed for this target: +1 each time a
+  // block's countdown reaches zero, or when the final shrunk-remainder block is
+  // where the task gets finished. Independent of `actualMinutes` (wall-clock).
+  sessionsCompleted: integer("sessionsCompleted").notNull().default(0),
   longTermGoalId: integer("longTermGoalId").references(() => longTermGoals.id, { onDelete: "set null" }),
   // --- AI Planner scheduling metadata -------------------------------------
   // `durationMinutes` is the user's rough effort estimate for this task; the
@@ -230,8 +234,9 @@ export const dailyStats = pgTable(
 )
 
 // A rolling-monthly effort target scoped to one pillar. `metric` is the goal
-// type ('points' — the only one surfaced today — or 'sessions', reserved for
-// later); `targetValue` is the amount to hit each cycle. The 30-day cycle is
+// type ('points' — sum of completed-target points — or 'sessions' — count of
+// focus_sessions in the cycle); `targetValue` is the amount to hit each cycle.
+// The 30-day cycle is
 // derived on read from `anchorDate` (a user-picked, immutable start), so it
 // rolls forward automatically without a cron. `pillarId` is unique — at most
 // one goal per pillar, so progress is never ambiguous. Drives the Goals page
@@ -251,6 +256,42 @@ export const pillarGoals = pgTable("pillar_goals", {
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
+
+// One completed Pomodoro focus session. Written when a focus timer finishes
+// (natural completion or manual end) with >= 1 elapsed minute. `pillarId` is
+// stored denormalized (not just via `targetId`) so a session still counts
+// toward its pillar's goal after the target is deleted, and so sessions-mode
+// pillar goals can aggregate by pillar without a join. `date` (YYYY-MM-DD, the
+// completion day in the user's timezone) is what the rolling-cycle window is
+// filtered on, mirroring how targets are attributed by `originalDate`.
+//
+// The timing columns (`startedAt`/`endedAt`/`durationSec`/`completed`) are the
+// source of truth for the Focus heatmaps: all focus-stats aggregation buckets
+// on `startedAt` in the user's timezone (never on the `date` text column) and
+// sums `durationSec`. `minutes`/`date` are retained for the pillar-goals
+// sessions counter. `completed` is true when the timer ran to its natural end
+// (durationSec >= 95% of the configured length).
+export const focusSessions = pgTable(
+  "focus_sessions",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetId: integer("targetId").references(() => targets.id, { onDelete: "set null" }),
+    pillarId: integer("pillarId")
+      .notNull()
+      .references(() => pillars.id, { onDelete: "cascade" }),
+    minutes: integer("minutes").notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD, completion day (window key)
+    startedAt: timestamp("startedAt").notNull().defaultNow(),
+    endedAt: timestamp("endedAt").notNull().defaultNow(),
+    durationSec: integer("durationSec").notNull().default(0),
+    completed: boolean("completed").notNull().default(false),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (table) => [index("focus_sessions_user_started_idx").on(table.userId, table.startedAt)]
+)
 
 // A multi-week/month goal tied to one pillar (e.g. "Finish NeetCode 150").
 // Progress is computed automatically as the count of completed targets in

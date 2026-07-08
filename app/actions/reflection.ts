@@ -58,7 +58,10 @@ export async function getEffortComparison(): Promise<EffortComparisonRow[]> {
     })
     .from(pillarGoals)
     .innerJoin(pillars, eq(pillarGoals.pillarId, pillars.id))
-    .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.active, true)))
+    // Points-only: the desired/actual model is a share of points earned, so a
+    // sessions-metric goal's targetValue (a session count) can't be summed into
+    // it coherently. Sessions goals sit out the effort comparison / balance score.
+    .where(and(eq(pillarGoals.userId, userId), eq(pillarGoals.active, true), eq(pillarGoals.metric, "points")))
 
   if (goals.length === 0) return []
 

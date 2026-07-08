@@ -9,10 +9,16 @@ import { PillarPicker, type PillarOption } from "@/components/pillar-picker"
 import { cn } from "@/lib/utils"
 
 type GoalType = "pillar" | "long-term"
+type PillarMetric = "points" | "sessions"
 
 const TYPE_OPTIONS: { value: GoalType; label: string }[] = [
   { value: "pillar", label: "Pillar goal" },
   { value: "long-term", label: "Long-term goal" },
+]
+
+const METRIC_OPTIONS: { value: PillarMetric; label: string }[] = [
+  { value: "points", label: "Points" },
+  { value: "sessions", label: "Focus sessions" },
 ]
 
 export function GoalFormDialog({
@@ -28,6 +34,7 @@ export function GoalFormDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<GoalType>("pillar")
+  const [metric, setMetric] = useState<PillarMetric>("points")
   const [pillarId, setPillarId] = useState<number | null>(pillars[0]?.id ?? null)
   const [targetValue, setTargetValue] = useState(100)
   const [title, setTitle] = useState("")
@@ -38,6 +45,7 @@ export function GoalFormDialog({
 
   function reset() {
     setType("pillar")
+    setMetric("points")
     setTargetValue(100)
     setTitle("")
     setDeadline(today)
@@ -51,7 +59,7 @@ export function GoalFormDialog({
 
     startTransition(async () => {
       if (type === "pillar") {
-        await createPillarGoal(pillarId, targetValue, anchorDate)
+        await createPillarGoal(pillarId, targetValue, anchorDate, metric)
       } else {
         await createLongTermGoal(title, pillarId, targetValue, deadline)
       }
@@ -109,8 +117,33 @@ export function GoalFormDialog({
             <PillarPicker pillars={pillars} value={pillarId} onChange={setPillarId} onPillarCreated={onPillarCreated} />
           </div>
 
+          {type === "pillar" && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Measure by</span>
+              <div className="flex flex-wrap gap-1.5">
+                {METRIC_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setMetric(opt.value)}
+                    className={cn(
+                      "rounded-lg border border-line px-3 py-1.5 text-sm transition-colors",
+                      metric === opt.value
+                        ? "border-primary bg-surface-3 text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{type === "pillar" ? "Target (points)" : "Target tasks"}</span>
+            <span className="text-sm text-muted-foreground">
+              {type === "pillar" ? (metric === "points" ? "Target (points)" : "Target (sessions)") : "Target tasks"}
+            </span>
             <input
               type="number"
               min={1}
