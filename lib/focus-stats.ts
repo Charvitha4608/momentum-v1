@@ -18,14 +18,26 @@ import { shiftDateString } from "@/lib/date-utils"
 // the pillar-goals sessions counter).
 // ---------------------------------------------------------------------------
 
+// The tz must be inlined as a SQL *literal*, not a bind parameter. This bucket
+// expression is reused across SELECT, WHERE and GROUP BY; as a bind param Drizzle
+// emits a distinct placeholder in each clause ($1 in SELECT vs $7 in GROUP BY),
+// so Postgres can't match them and rejects the grouping with 42803 ("startedAt
+// must appear in the GROUP BY clause"). A literal keeps the expression textually
+// identical everywhere. tz is whitelisted to IANA-safe characters to stay
+// injection-proof since it bypasses parameterization.
+function tzLiteral(tz: string) {
+  if (!/^[A-Za-z0-9/_+-]+$/.test(tz)) throw new Error(`Invalid timezone: ${tz}`)
+  return sql.raw(`'${tz}'`)
+}
+
 /** Local-day bucket ('YYYY-MM-DD') of a session's start, in the user's tz. */
 function localDayExpr(tz: string) {
-  return sql<string>`to_char(date_trunc('day', (${focusSessions.startedAt} AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD')`
+  return sql<string>`to_char(date_trunc('day', (${focusSessions.startedAt} AT TIME ZONE 'UTC') AT TIME ZONE ${tzLiteral(tz)}), 'YYYY-MM-DD')`
 }
 
 /** Local ISO-week (Monday) bucket ('YYYY-MM-DD') of a session's start. */
 function localWeekExpr(tz: string) {
-  return sql<string>`to_char(date_trunc('week', (${focusSessions.startedAt} AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD')`
+  return sql<string>`to_char(date_trunc('week', (${focusSessions.startedAt} AT TIME ZONE 'UTC') AT TIME ZONE ${tzLiteral(tz)}), 'YYYY-MM-DD')`
 }
 
 /** ISO-week Monday (YYYY-MM-DD) for any date string. */
