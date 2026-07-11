@@ -59,13 +59,13 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
           </h2>
           {rows.length > 1 && (
             <ToggleGroup value={[sortMode]} onValueChange={(v) => v[0] && setSortMode(v[0] as SortMode)}>
-              <ToggleGroupItem value="points" aria-label="Sort by points">
-                <Star className="mr-1 inline size-3.5" />
-                Points
-              </ToggleGroupItem>
-              <ToggleGroupItem value="streak" aria-label="Sort by streak">
+              <ToggleGroupItem value="streak" aria-label="Sort by streak" className="px-2 py-1 text-xs">
                 <Flame className="mr-1 inline size-3.5" />
                 Streak
+              </ToggleGroupItem>
+              <ToggleGroupItem value="points" aria-label="Sort by points" className="px-2 py-1 text-xs">
+                <Star className="mr-1 inline size-3.5" />
+                Points
               </ToggleGroupItem>
             </ToggleGroup>
           )}

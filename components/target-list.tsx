@@ -733,7 +733,7 @@ export function TargetList({
               </div>
 
               <p className="mb-1.5 text-xs text-foreground">Preferred time</p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="mb-3 flex flex-wrap gap-1.5">
                 {TIME_OF_DAY_CHOICES.map((c) => (
                   <button
                     key={c.value}
@@ -749,6 +749,14 @@ export function TargetList({
                   </button>
                 ))}
               </div>
+
+              <button
+                type="button"
+                onClick={() => setMetaOpen(false)}
+                className="w-full rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Save
+              </button>
             </PopoverContent>
           </Popover>
           <RecurringTaskDialog
