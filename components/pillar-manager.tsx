@@ -118,8 +118,14 @@ export function PillarManager({
     setEditingId(null)
     setCreating(true)
     setName("")
-    setIcon(PILLAR_ICONS[0])
-    setColor(PILLAR_COLORS[0])
+    // Rotate defaults by the user's current pillar count (n) so each new pillar
+    // opens with a fresh emoji/color. Counting all pillars (incl. archived) means
+    // a default is never reused for this user even after archiving. Users can
+    // still change either pick before saving.
+    const n = pillars.length
+    const iconStart = PILLAR_ICONS.indexOf("🎯")
+    setIcon(PILLAR_ICONS[(iconStart + n) % PILLAR_ICONS.length])
+    setColor(PILLAR_COLORS[n % PILLAR_COLORS.length])
   }
 
   function handleSubmit(e: React.FormEvent) {
