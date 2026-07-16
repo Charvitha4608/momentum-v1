@@ -136,6 +136,7 @@ export function Leaderboard({ rows, title = "Leaderboard" }: { rows: Row[]; titl
                   <div className="text-lg font-semibold tabular-nums text-primary">{profile.points}</div>
                   <div className="text-xs text-muted-foreground">Points</div>
                 </div>
+                
                 <div className="rounded-lg bg-surface-2 px-2 py-3">
                   <div className="text-lg font-semibold tabular-nums text-destructive">{profile.streak}</div>
                   <div className="text-xs text-muted-foreground">Streak</div>
