@@ -43,21 +43,27 @@ export function GetAheadCard({ items, today }: { items: UpcomingTarget[]; today:
     })
   }
 
-  // Nothing to get ahead on — render no shell at all.
-  if (rows.length === 0) return null
-
   return (
     <Card className="w-full">
       <CardContent>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <CalendarArrowUp className="size-4 text-primary" aria-hidden />
-            Get ahead
+            Planned tasks
           </h2>
-          <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-            {rows.length} upcoming
-          </span>
+          {rows.length > 0 && (
+            <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              {rows.length} upcoming
+            </span>
+          )}
         </div>
+
+        {rows.length === 0 && (
+          <p className="px-2 py-3 text-sm text-muted-foreground">
+            Nothing planned ahead yet — add a target and pick a future date (and a goal) to line up work for the days
+            to come.
+          </p>
+        )}
 
         <ul className="flex flex-col gap-1">
           <AnimatePresence initial={false}>
