@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { targets, dailyStats, notifications, user, pillars, recurringTasks, focusSessions } from "@/lib/db/schema"
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { getToday } from "@/lib/date"
@@ -186,6 +186,44 @@ export async function getTodayTargets(today?: string) {
     .where(and(eq(targets.userId, userId), eq(targets.date, day)))
     .orderBy(asc(targets.sortOrder), asc(targets.id))
 }
+
+/**
+ * The nearest still-open targets planned for a *future* day — what the "Get
+ * ahead" card offers up for early completion.
+ *
+ * Filtered on `originalDate` (immutable) rather than `date`: a postponed
+ * backlog task has a future `date` but a past `originalDate`, and it belongs to
+ * the backlog's history, not here. Overdue work is likewise excluded — it
+ * already surfaces in the Backlog card. Generated recurring instances are
+ * skipped so the card stays a list of deliberately-planned work.
+ */
+export async function getUpcomingTargets(today?: string, limit = 5) {
+  const userId = await getUserId()
+  const day = today ?? (await getToday())
+  return db
+    .select({
+      id: targets.id,
+      title: targets.title,
+      originalDate: targets.originalDate,
+      points: targets.points,
+      pillarName: pillars.name,
+      pillarColor: pillars.color,
+    })
+    .from(targets)
+    .innerJoin(pillars, eq(targets.pillarId, pillars.id))
+    .where(
+      and(
+        eq(targets.userId, userId),
+        gt(targets.originalDate, day),
+        eq(targets.completed, false),
+        isNull(targets.recurringTaskId)
+      )
+    )
+    .orderBy(asc(targets.originalDate), asc(targets.sortOrder), asc(targets.id))
+    .limit(limit)
+}
+
+export type UpcomingTarget = Awaited<ReturnType<typeof getUpcomingTargets>>[number]
 
 export type TargetSchedulingMeta = {
   durationMinutes?: number | null

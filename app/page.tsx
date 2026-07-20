@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
-import { getTodayTargets, getMyStats } from "@/app/actions/targets"
+import { getTodayTargets, getMyStats, getUpcomingTargets } from "@/app/actions/targets"
 import { getPillars } from "@/app/actions/pillars"
 import { getActiveLongTermGoals } from "@/app/actions/goals"
 import { getLeaderboard } from "@/app/actions/friends"
@@ -14,6 +14,7 @@ import { StatCard } from "@/components/stat-card"
 import { TodayProgressCard } from "@/components/today-progress-card"
 import { Leaderboard } from "@/components/leaderboard"
 import { BacklogCard } from "@/components/backlog-card"
+import { GetAheadCard } from "@/components/get-ahead-card"
 import { AvailabilityQuickEdit } from "@/components/availability-quick-edit"
 import { AppShell } from "@/components/app-shell"
 import { Sparkles, Zap } from "lucide-react"
@@ -24,7 +25,7 @@ export default async function HomePage() {
   if (!session?.user) redirect("/sign-in")
 
   const today = await getToday()
-  const [targets, stats, leaderboard, pillars, availability, longTermGoals, digest] = await Promise.all([
+  const [targets, stats, leaderboard, pillars, availability, longTermGoals, digest, upcoming] = await Promise.all([
     getTodayTargets(today),
     getMyStats(),
     getLeaderboard(),
@@ -32,6 +33,7 @@ export default async function HomePage() {
     getTodayAvailability(),
     getActiveLongTermGoals(),
     getDashboardDigest(),
+    getUpcomingTargets(today),
   ])
 
   // Carry-over already moved every unfinished past target's `date` to today,
@@ -61,6 +63,7 @@ export default async function HomePage() {
             dailyScore={stats.dailyScore}
           />
           <TargetList initialTargets={todayTargets} date={today} pillars={pillars} longTermGoals={longTermGoals} />
+          <GetAheadCard items={upcoming} today={today} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-4">
